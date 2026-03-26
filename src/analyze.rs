@@ -1,10 +1,10 @@
 // Analyze engine module
 // Analyzes a single hash database and generates statistics
 
+use crate::database::{DatabaseFormat, DatabaseHandler};
+use crate::error::HashUtilityError;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use crate::database::{DatabaseHandler, DatabaseFormat};
-use crate::error::HashUtilityError;
 
 /// A group of duplicate files (same hash)
 #[derive(Debug, Clone, serde::Serialize)]
@@ -63,15 +63,27 @@ impl AnalyzeReport {
         // Database info
         output.push_str(&format!("Database: {}\n", self.database_path.display()));
         output.push_str(&format!("Format:   {}\n", self.stats.database_format));
-        output.push_str(&format!("Size:     {}\n", format_size(self.stats.database_file_size)));
+        output.push_str(&format!(
+            "Size:     {}\n",
+            format_size(self.stats.database_file_size)
+        ));
 
         // Summary
         output.push_str("\nSummary:\n");
         output.push_str(&format!("  Total files:    {}\n", self.stats.total_files));
         output.push_str(&format!("  Unique hashes:  {}\n", self.stats.unique_hashes));
-        output.push_str(&format!("  Algorithms:     {}\n", self.stats.algorithms.join(", ")));
-        output.push_str(&format!("  Fast mode:      {} files\n", self.stats.fast_mode_files));
-        output.push_str(&format!("  Normal mode:    {} files\n", self.stats.normal_mode_files));
+        output.push_str(&format!(
+            "  Algorithms:     {}\n",
+            self.stats.algorithms.join(", ")
+        ));
+        output.push_str(&format!(
+            "  Fast mode:      {} files\n",
+            self.stats.fast_mode_files
+        ));
+        output.push_str(&format!(
+            "  Normal mode:    {} files\n",
+            self.stats.normal_mode_files
+        ));
 
         // File sizes (if available)
         if let Some(total_size) = self.stats.total_file_size {
@@ -81,8 +93,14 @@ impl AnalyzeReport {
 
         // Duplicates
         output.push_str("\nDuplicates:\n");
-        output.push_str(&format!("  Duplicate groups: {}\n", self.stats.duplicate_groups));
-        output.push_str(&format!("  Duplicate files:  {}\n", self.stats.duplicate_files));
+        output.push_str(&format!(
+            "  Duplicate groups: {}\n",
+            self.stats.duplicate_groups
+        ));
+        output.push_str(&format!(
+            "  Duplicate files:  {}\n",
+            self.stats.duplicate_files
+        ));
         if let Some(savings) = self.stats.potential_savings {
             output.push_str(&format!("  Potential savings: {}\n", format_size(savings)));
         }
@@ -95,7 +113,8 @@ impl AnalyzeReport {
                     Some(size) => format!(" ({} each)", format_size(size)),
                     None => String::new(),
                 };
-                output.push_str(&format!("  Hash: {}...{} ({} files{})\n",
+                output.push_str(&format!(
+                    "  Hash: {}...{} ({} files{})\n",
                     &group.hash[..8.min(group.hash.len())],
                     &group.hash[group.hash.len().saturating_sub(8)..],
                     group.count,
@@ -195,13 +214,17 @@ impl AnalyzeReport {
                 files: self.stats.duplicate_files,
                 potential_savings_bytes: self.stats.potential_savings,
             },
-            duplicate_groups: self.duplicate_groups.iter().map(|g| DuplicateGroupJson {
-                hash: g.hash.clone(),
-                count: g.count,
-                file_size_bytes: g.file_size,
-                wasted_space_bytes: g.wasted_space,
-                paths: g.paths.iter().map(|p| p.display().to_string()).collect(),
-            }).collect(),
+            duplicate_groups: self
+                .duplicate_groups
+                .iter()
+                .map(|g| DuplicateGroupJson {
+                    hash: g.hash.clone(),
+                    count: g.count,
+                    file_size_bytes: g.file_size,
+                    wasted_space_bytes: g.wasted_space,
+                    paths: g.paths.iter().map(|p| p.display().to_string()).collect(),
+                })
+                .collect(),
         };
 
         serde_json::to_string_pretty(&output)
@@ -221,7 +244,13 @@ impl AnalyzeEngine {
     pub fn analyze(&self, database_path: &Path) -> Result<AnalyzeReport, HashUtilityError> {
         // Get database file size
         let database_file_size = std::fs::metadata(database_path)
-            .map_err(|e| HashUtilityError::from_io_error(e, "reading database metadata", Some(database_path.to_path_buf())))?
+            .map_err(|e| {
+                HashUtilityError::from_io_error(
+                    e,
+                    "reading database metadata",
+                    Some(database_path.to_path_buf()),
+                )
+            })?
             .len();
 
         // Detect format
@@ -263,9 +292,7 @@ impl AnalyzeEngine {
 
         // Calculate potential savings
         let potential_savings: Option<u64> = if has_sizes {
-            Some(duplicate_groups.iter()
-                .filter_map(|g| g.wasted_space)
-                .sum())
+            Some(duplicate_groups.iter().filter_map(|g| g.wasted_space).sum())
         } else {
             None
         };
@@ -301,14 +328,20 @@ impl AnalyzeEngine {
             DatabaseFormat::Standard => {
                 // Standard format doesn't have sizes
                 let db = DatabaseHandler::read_database(path)?;
-                Ok(db.into_iter().map(|(path, entry)| {
-                    (path, EntryWithSize {
-                        hash: entry.hash,
-                        algorithm: entry.algorithm,
-                        fast_mode: entry.fast_mode,
-                        file_size: None,
+                Ok(db
+                    .into_iter()
+                    .map(|(path, entry)| {
+                        (
+                            path,
+                            EntryWithSize {
+                                hash: entry.hash,
+                                algorithm: entry.algorithm,
+                                fast_mode: entry.fast_mode,
+                                file_size: None,
+                            },
+                        )
                     })
-                }).collect())
+                    .collect())
             }
             DatabaseFormat::Hashdeep => {
                 // Parse hashdeep format with sizes
@@ -318,7 +351,9 @@ impl AnalyzeEngine {
     }
 
     /// Read hashdeep format database and extract file sizes
-    fn read_hashdeep_with_sizes(path: &Path) -> Result<HashMap<PathBuf, EntryWithSize>, HashUtilityError> {
+    fn read_hashdeep_with_sizes(
+        path: &Path,
+    ) -> Result<HashMap<PathBuf, EntryWithSize>, HashUtilityError> {
         use std::io::BufRead;
 
         let file = std::fs::File::open(path).map_err(|e| {
@@ -352,7 +387,7 @@ impl AnalyzeEngine {
                 if header_parts.len() >= 2 {
                     let fields: Vec<&str> = header_parts[1].split(',').collect();
                     if fields.len() >= 3 {
-                        algorithms = fields[1..fields.len()-1]
+                        algorithms = fields[1..fields.len() - 1]
                             .iter()
                             .map(|s| s.to_string())
                             .collect();
@@ -366,38 +401,37 @@ impl AnalyzeEngine {
                 continue;
             }
 
-            // Parse data line: size,hash1,hash2,...,filename
-            let parts: Vec<&str> = trimmed.split(',').collect();
-            if parts.len() < 3 {
+            let expected_hash_count = if algorithms.is_empty() {
+                None
+            } else {
+                Some(algorithms.len())
+            };
+            let Some(record) = DatabaseHandler::parse_hashdeep_record(&line, expected_hash_count)
+            else {
                 continue;
-            }
+            };
 
-            // First part is size
-            let size: Option<u64> = parts[0].trim().parse().ok();
-
-            // Last part is filename
-            let filename = parts[parts.len() - 1].trim();
-            if filename.is_empty() {
-                continue;
-            }
-
-            // Middle parts are hashes - use first one
-            let hash = parts[1].trim();
+            // Use the first hash for analysis consistency.
+            let hash = &record.hashes[0];
             if hash.is_empty() {
                 continue;
             }
 
-            let algorithm = algorithms.first()
+            let algorithm = algorithms
+                .first()
                 .cloned()
                 .unwrap_or_else(|| infer_algorithm_from_hash(hash));
 
-            let file_path = crate::path_utils::parse_database_path(filename);
-            entries.insert(file_path, EntryWithSize {
-                hash: hash.to_string(),
-                algorithm,
-                fast_mode: false,
-                file_size: size,
-            });
+            let file_path = crate::path_utils::parse_database_path(&record.filename);
+            entries.insert(
+                file_path,
+                EntryWithSize {
+                    hash: hash.clone(),
+                    algorithm,
+                    fast_mode: false,
+                    file_size: Some(record.size),
+                },
+            );
         }
 
         Ok(entries)
@@ -437,7 +471,8 @@ impl AnalyzeEngine {
 
         // Sort by wasted space (descending) then by hash
         duplicates.sort_by(|a, b| {
-            b.wasted_space.cmp(&a.wasted_space)
+            b.wasted_space
+                .cmp(&a.wasted_space)
                 .then_with(|| a.hash.cmp(&b.hash))
         });
 
@@ -523,6 +558,36 @@ mod tests {
         assert_eq!(report.stats.duplicate_groups, 1);
         assert_eq!(report.stats.total_file_size, Some(4000)); // 1000 + 2000 + 1000
         assert_eq!(report.stats.potential_savings, Some(1000)); // One duplicate of 1000 bytes
+
+        fs::remove_file(db_path).unwrap();
+    }
+
+    #[test]
+    fn test_analyze_hashdeep_format_with_commas_in_filename() {
+        let db_path = "test_analyze_hashdeep_commas.txt";
+        let content = "%%%% HASHDEEP-1.0\n\
+                       %%%% size,sha256,filename\n\
+                       ## Invoked from: test\n\
+                       ##\n\
+                       1000,hash1,file,one.txt\n\
+                       1000,hash1,file,two.txt\n";
+        fs::write(db_path, content).unwrap();
+
+        let engine = AnalyzeEngine::new();
+        let report = engine.analyze(Path::new(db_path)).unwrap();
+
+        assert_eq!(report.stats.total_files, 2);
+        assert_eq!(report.stats.duplicate_groups, 1);
+        assert_eq!(report.stats.total_file_size, Some(2000));
+        assert_eq!(report.duplicate_groups[0].paths.len(), 2);
+        assert!(report.duplicate_groups[0]
+            .paths
+            .iter()
+            .any(|path| path == &PathBuf::from("file,one.txt")));
+        assert!(report.duplicate_groups[0]
+            .paths
+            .iter()
+            .any(|path| path == &PathBuf::from("file,two.txt")));
 
         fs::remove_file(db_path).unwrap();
     }

@@ -1,10 +1,10 @@
 // Compare engine module
 // Compares two hash databases and generates detailed comparison reports
 
+use crate::database::{DatabaseEntry, DatabaseFormat, DatabaseHandler};
+use crate::error::HashUtilityError;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use crate::database::{DatabaseHandler, DatabaseEntry, DatabaseFormat};
-use crate::error::HashUtilityError;
 
 /// Metadata about a database file
 #[derive(Debug, Clone, serde::Serialize)]
@@ -104,7 +104,11 @@ impl CompareReport {
         if !self.moved_files.is_empty() {
             println!("\nMoved Files:");
             for moved in &self.moved_files {
-                println!("  {} -> {}", moved.from_path.display(), moved.to_path.display());
+                println!(
+                    "  {} -> {}",
+                    moved.from_path.display(),
+                    moved.to_path.display()
+                );
             }
         }
 
@@ -148,7 +152,7 @@ impl CompareReport {
 
         println!();
     }
-    
+
     /// Format the comparison report as plain text string
     pub fn to_plain_text(&self) -> String {
         let mut output = String::new();
@@ -158,18 +162,22 @@ impl CompareReport {
         // Database info section
         output.push_str("Databases:\n");
         output.push_str(&format!("  DB1: {}\n", self.db1_info.path.display()));
-        output.push_str(&format!("       Format: {}, Size: {}, Files: {}\n",
+        output.push_str(&format!(
+            "       Format: {}, Size: {}, Files: {}\n",
             self.db1_info.format,
             format_size(self.db1_info.size_bytes),
-            self.db1_info.file_count));
+            self.db1_info.file_count
+        ));
         if let Some(ref modified) = self.db1_info.modified {
             output.push_str(&format!("       Modified: {}\n", modified));
         }
         output.push_str(&format!("  DB2: {}\n", self.db2_info.path.display()));
-        output.push_str(&format!("       Format: {}, Size: {}, Files: {}\n",
+        output.push_str(&format!(
+            "       Format: {}, Size: {}, Files: {}\n",
             self.db2_info.format,
             format_size(self.db2_info.size_bytes),
-            self.db2_info.file_count));
+            self.db2_info.file_count
+        ));
         if let Some(ref modified) = self.db2_info.modified {
             output.push_str(&format!("       Modified: {}\n", modified));
         }
@@ -178,9 +186,15 @@ impl CompareReport {
         // Summary section
         output.push_str("Summary:\n");
         output.push_str(&format!("  Unchanged:  {} files\n", self.unchanged_files));
-        output.push_str(&format!("  Changed:    {} files\n", self.changed_files.len()));
+        output.push_str(&format!(
+            "  Changed:    {} files\n",
+            self.changed_files.len()
+        ));
         output.push_str(&format!("  Moved:      {} files\n", self.moved_files.len()));
-        output.push_str(&format!("  Removed:    {} files\n", self.removed_files.len()));
+        output.push_str(&format!(
+            "  Removed:    {} files\n",
+            self.removed_files.len()
+        ));
         output.push_str(&format!("  Added:      {} files\n", self.added_files.len()));
 
         // Changed files section
@@ -197,7 +211,11 @@ impl CompareReport {
         if !self.moved_files.is_empty() {
             output.push_str("\nMoved Files:\n");
             for moved in &self.moved_files {
-                output.push_str(&format!("  {} -> {}\n", moved.from_path.display(), moved.to_path.display()));
+                output.push_str(&format!(
+                    "  {} -> {}\n",
+                    moved.from_path.display(),
+                    moved.to_path.display()
+                ));
             }
         }
 
@@ -220,7 +238,7 @@ impl CompareReport {
         output.push('\n');
         output
     }
-    
+
     /// Format the comparison report in hashdeep audit style
     ///
     /// This format matches hashdeep's audit mode (-a -vvv) output style:
@@ -243,11 +261,26 @@ impl CompareReport {
         }
 
         // Summary counts (like hashdeep -vv)
-        output.push_str(&format!("          Files matched: {}\n", self.unchanged_files));
-        output.push_str(&format!("         Files modified: {}\n", self.changed_files.len()));
-        output.push_str(&format!("            Files moved: {}\n", self.moved_files.len()));
-        output.push_str(&format!("        New files found: {}\n", self.added_files.len()));
-        output.push_str(&format!("  Known files not found: {}\n", self.removed_files.len()));
+        output.push_str(&format!(
+            "          Files matched: {}\n",
+            self.unchanged_files
+        ));
+        output.push_str(&format!(
+            "         Files modified: {}\n",
+            self.changed_files.len()
+        ));
+        output.push_str(&format!(
+            "            Files moved: {}\n",
+            self.moved_files.len()
+        ));
+        output.push_str(&format!(
+            "        New files found: {}\n",
+            self.added_files.len()
+        ));
+        output.push_str(&format!(
+            "  Known files not found: {}\n",
+            self.removed_files.len()
+        ));
 
         // Detailed listings (like hashdeep -vvv)
         if !self.changed_files.is_empty() {
@@ -376,20 +409,36 @@ impl CompareReport {
                 added_count: self.added_files.len(),
             },
             unchanged_files: self.unchanged_files,
-            changed_files: self.changed_files.iter().map(|cf| ChangedFileJson {
-                path: cf.path.display().to_string(),
-                hash_db1: cf.hash_db1.clone(),
-                hash_db2: cf.hash_db2.clone(),
-            }).collect(),
-            moved_files: self.moved_files.iter().map(|mf| MovedFileJson {
-                from_path: mf.from_path.display().to_string(),
-                to_path: mf.to_path.display().to_string(),
-                hash: mf.hash.clone(),
-            }).collect(),
-            removed_files: self.removed_files.iter().map(|p| p.display().to_string()).collect(),
-            added_files: self.added_files.iter().map(|p| p.display().to_string()).collect(),
+            changed_files: self
+                .changed_files
+                .iter()
+                .map(|cf| ChangedFileJson {
+                    path: cf.path.display().to_string(),
+                    hash_db1: cf.hash_db1.clone(),
+                    hash_db2: cf.hash_db2.clone(),
+                })
+                .collect(),
+            moved_files: self
+                .moved_files
+                .iter()
+                .map(|mf| MovedFileJson {
+                    from_path: mf.from_path.display().to_string(),
+                    to_path: mf.to_path.display().to_string(),
+                    hash: mf.hash.clone(),
+                })
+                .collect(),
+            removed_files: self
+                .removed_files
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect(),
+            added_files: self
+                .added_files
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect(),
         };
-        
+
         serde_json::to_string_pretty(&output)
     }
 }
@@ -402,16 +451,16 @@ impl CompareEngine {
     pub fn new() -> Self {
         CompareEngine
     }
-    
+
     /// Compare two hash databases and generate a detailed report
-    /// 
+    ///
     /// # Arguments
     /// * `database1` - Path to the first database file
     /// * `database2` - Path to the second database file
-    /// 
+    ///
     /// # Returns
     /// A CompareReport containing all comparison findings
-    /// 
+    ///
     /// # Errors
     /// Returns an error if either database cannot be read
     pub fn compare(
@@ -426,17 +475,14 @@ impl CompareEngine {
         // Load both databases
         let db1 = DatabaseHandler::read_database(database1)?;
         let db2 = DatabaseHandler::read_database(database2)?;
-        
+
         // Detect duplicates in each database
         let duplicates_db1 = Self::find_duplicates(&db1);
         let duplicates_db2 = Self::find_duplicates(&db2);
-        
+
         // Get all unique file paths from both databases
-        let all_paths: HashSet<PathBuf> = db1.keys()
-            .chain(db2.keys())
-            .cloned()
-            .collect();
-        
+        let all_paths: HashSet<PathBuf> = db1.keys().chain(db2.keys()).cloned().collect();
+
         // Classify files
         let mut unchanged_count = 0;
         let mut changed_files = Vec::new();
@@ -558,7 +604,11 @@ impl CompareEngine {
 
         // Get file metadata
         let metadata = fs::metadata(path).map_err(|e| {
-            HashUtilityError::from_io_error(e, "reading database metadata", Some(path.to_path_buf()))
+            HashUtilityError::from_io_error(
+                e,
+                "reading database metadata",
+                Some(path.to_path_buf()),
+            )
         })?;
 
         // Detect format
@@ -582,25 +632,25 @@ impl CompareEngine {
             modified,
         })
     }
-    
+
     /// Find duplicate hashes within a database
-    /// 
+    ///
     /// # Arguments
     /// * `database` - The database to search for duplicates
-    /// 
+    ///
     /// # Returns
     /// A vector of DuplicateGroup, each containing files with the same hash
     fn find_duplicates(database: &HashMap<PathBuf, DatabaseEntry>) -> Vec<DuplicateGroup> {
         // Build a map from hash to list of paths
         let mut hash_to_paths: HashMap<String, Vec<PathBuf>> = HashMap::new();
-        
+
         for (path, entry) in database {
             hash_to_paths
                 .entry(entry.hash.clone())
                 .or_insert_with(Vec::new)
                 .push(path.clone());
         }
-        
+
         // Filter to only groups with more than one file (duplicates)
         let mut duplicates: Vec<DuplicateGroup> = hash_to_paths
             .into_iter()
@@ -608,17 +658,13 @@ impl CompareEngine {
             .map(|(hash, mut paths)| {
                 paths.sort();
                 let count = paths.len();
-                DuplicateGroup {
-                    hash,
-                    paths,
-                    count,
-                }
+                DuplicateGroup { hash, paths, count }
             })
             .collect();
-        
+
         // Sort by hash for consistent output
         duplicates.sort_by(|a, b| a.hash.cmp(&b.hash));
-        
+
         duplicates
     }
 }
@@ -626,25 +672,27 @@ impl CompareEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use crate::database::DatabaseHandler;
+    use std::fs;
 
     #[test]
     fn test_compare_identical_databases() {
         // Create two identical databases
         let db1_path = "test_compare_identical_db1.txt";
         let db2_path = "test_compare_identical_db2.txt";
-        
+
         let content = "hash1  sha256  normal  file1.txt\n\
                        hash2  sha256  normal  file2.txt\n\
                        hash3  sha256  normal  file3.txt\n";
-        
+
         fs::write(db1_path, content).unwrap();
         fs::write(db2_path, content).unwrap();
-        
+
         let engine = CompareEngine::new();
-        let report = engine.compare(Path::new(db1_path), Path::new(db2_path)).unwrap();
-        
+        let report = engine
+            .compare(Path::new(db1_path), Path::new(db2_path))
+            .unwrap();
+
         assert_eq!(report.db1_total_files, 3);
         assert_eq!(report.db2_total_files, 3);
         assert_eq!(report.unchanged_files, 3);
@@ -653,176 +701,186 @@ mod tests {
         assert_eq!(report.added_files.len(), 0);
         assert_eq!(report.duplicates_db1.len(), 0);
         assert_eq!(report.duplicates_db2.len(), 0);
-        
+
         fs::remove_file(db1_path).unwrap();
         fs::remove_file(db2_path).unwrap();
     }
-    
+
     #[test]
     fn test_compare_with_changed_files() {
         let db1_path = "test_compare_changed_db1.txt";
         let db2_path = "test_compare_changed_db2.txt";
-        
+
         let content1 = "hash1  sha256  normal  file1.txt\n\
                         hash2  sha256  normal  file2.txt\n\
                         hash3  sha256  normal  file3.txt\n";
-        
+
         let content2 = "hash1  sha256  normal  file1.txt\n\
                         hash2_modified  sha256  normal  file2.txt\n\
                         hash3  sha256  normal  file3.txt\n";
-        
+
         fs::write(db1_path, content1).unwrap();
         fs::write(db2_path, content2).unwrap();
-        
+
         let engine = CompareEngine::new();
-        let report = engine.compare(Path::new(db1_path), Path::new(db2_path)).unwrap();
-        
+        let report = engine
+            .compare(Path::new(db1_path), Path::new(db2_path))
+            .unwrap();
+
         assert_eq!(report.db1_total_files, 3);
         assert_eq!(report.db2_total_files, 3);
         assert_eq!(report.unchanged_files, 2);
         assert_eq!(report.changed_files.len(), 1);
         assert_eq!(report.removed_files.len(), 0);
         assert_eq!(report.added_files.len(), 0);
-        
+
         let changed = &report.changed_files[0];
         assert_eq!(changed.path, PathBuf::from("file2.txt"));
         assert_eq!(changed.hash_db1, "hash2");
         assert_eq!(changed.hash_db2, "hash2_modified");
-        
+
         fs::remove_file(db1_path).unwrap();
         fs::remove_file(db2_path).unwrap();
     }
-    
+
     #[test]
     fn test_compare_with_removed_files() {
         let db1_path = "test_compare_removed_db1.txt";
         let db2_path = "test_compare_removed_db2.txt";
-        
+
         let content1 = "hash1  sha256  normal  file1.txt\n\
                         hash2  sha256  normal  file2.txt\n\
                         hash3  sha256  normal  file3.txt\n";
-        
+
         let content2 = "hash1  sha256  normal  file1.txt\n\
                         hash3  sha256  normal  file3.txt\n";
-        
+
         fs::write(db1_path, content1).unwrap();
         fs::write(db2_path, content2).unwrap();
-        
+
         let engine = CompareEngine::new();
-        let report = engine.compare(Path::new(db1_path), Path::new(db2_path)).unwrap();
-        
+        let report = engine
+            .compare(Path::new(db1_path), Path::new(db2_path))
+            .unwrap();
+
         assert_eq!(report.db1_total_files, 3);
         assert_eq!(report.db2_total_files, 2);
         assert_eq!(report.unchanged_files, 2);
         assert_eq!(report.changed_files.len(), 0);
         assert_eq!(report.removed_files.len(), 1);
         assert_eq!(report.added_files.len(), 0);
-        
+
         assert_eq!(report.removed_files[0], PathBuf::from("file2.txt"));
-        
+
         fs::remove_file(db1_path).unwrap();
         fs::remove_file(db2_path).unwrap();
     }
-    
+
     #[test]
     fn test_compare_with_added_files() {
         let db1_path = "test_compare_added_db1.txt";
         let db2_path = "test_compare_added_db2.txt";
-        
+
         let content1 = "hash1  sha256  normal  file1.txt\n\
                         hash2  sha256  normal  file2.txt\n";
-        
+
         let content2 = "hash1  sha256  normal  file1.txt\n\
                         hash2  sha256  normal  file2.txt\n\
                         hash3  sha256  normal  file3.txt\n";
-        
+
         fs::write(db1_path, content1).unwrap();
         fs::write(db2_path, content2).unwrap();
-        
+
         let engine = CompareEngine::new();
-        let report = engine.compare(Path::new(db1_path), Path::new(db2_path)).unwrap();
-        
+        let report = engine
+            .compare(Path::new(db1_path), Path::new(db2_path))
+            .unwrap();
+
         assert_eq!(report.db1_total_files, 2);
         assert_eq!(report.db2_total_files, 3);
         assert_eq!(report.unchanged_files, 2);
         assert_eq!(report.changed_files.len(), 0);
         assert_eq!(report.removed_files.len(), 0);
         assert_eq!(report.added_files.len(), 1);
-        
+
         assert_eq!(report.added_files[0], PathBuf::from("file3.txt"));
-        
+
         fs::remove_file(db1_path).unwrap();
         fs::remove_file(db2_path).unwrap();
     }
-    
+
     #[test]
     fn test_compare_with_duplicates() {
         let db1_path = "test_compare_duplicates_db1.txt";
         let db2_path = "test_compare_duplicates_db2.txt";
-        
+
         // DB1 has duplicates: file1 and file2 have the same hash
         let content1 = "hash_duplicate  sha256  normal  file1.txt\n\
                         hash_duplicate  sha256  normal  file2.txt\n\
                         hash3  sha256  normal  file3.txt\n";
-        
+
         // DB2 has different duplicates: file3 and file4 have the same hash
         let content2 = "hash1  sha256  normal  file1.txt\n\
                         hash2  sha256  normal  file2.txt\n\
                         hash_dup2  sha256  normal  file3.txt\n\
                         hash_dup2  sha256  normal  file4.txt\n";
-        
+
         fs::write(db1_path, content1).unwrap();
         fs::write(db2_path, content2).unwrap();
-        
+
         let engine = CompareEngine::new();
-        let report = engine.compare(Path::new(db1_path), Path::new(db2_path)).unwrap();
-        
+        let report = engine
+            .compare(Path::new(db1_path), Path::new(db2_path))
+            .unwrap();
+
         assert_eq!(report.db1_total_files, 3);
         assert_eq!(report.db2_total_files, 4);
         assert_eq!(report.duplicates_db1.len(), 1);
         assert_eq!(report.duplicates_db2.len(), 1);
-        
+
         // Check DB1 duplicates
         let dup1 = &report.duplicates_db1[0];
         assert_eq!(dup1.hash, "hash_duplicate");
         assert_eq!(dup1.count, 2);
         assert_eq!(dup1.paths.len(), 2);
-        
+
         // Check DB2 duplicates
         let dup2 = &report.duplicates_db2[0];
         assert_eq!(dup2.hash, "hash_dup2");
         assert_eq!(dup2.count, 2);
         assert_eq!(dup2.paths.len(), 2);
-        
+
         fs::remove_file(db1_path).unwrap();
         fs::remove_file(db2_path).unwrap();
     }
-    
+
     #[test]
     fn test_compare_complex_scenario() {
         let db1_path = "test_compare_complex_db1.txt";
         let db2_path = "test_compare_complex_db2.txt";
-        
+
         // Complex scenario with unchanged, changed, removed, added, and duplicates
         let content1 = "hash_unchanged  sha256  normal  unchanged.txt\n\
                         hash_old  sha256  normal  changed.txt\n\
                         hash_removed  sha256  normal  removed.txt\n\
                         hash_dup  sha256  normal  dup1.txt\n\
                         hash_dup  sha256  normal  dup2.txt\n";
-        
+
         let content2 = "hash_unchanged  sha256  normal  unchanged.txt\n\
                         hash_new  sha256  normal  changed.txt\n\
                         hash_added  sha256  normal  added.txt\n\
                         hash_dup2  sha256  normal  dup3.txt\n\
                         hash_dup2  sha256  normal  dup4.txt\n\
                         hash_dup2  sha256  normal  dup5.txt\n";
-        
+
         fs::write(db1_path, content1).unwrap();
         fs::write(db2_path, content2).unwrap();
-        
+
         let engine = CompareEngine::new();
-        let report = engine.compare(Path::new(db1_path), Path::new(db2_path)).unwrap();
-        
+        let report = engine
+            .compare(Path::new(db1_path), Path::new(db2_path))
+            .unwrap();
+
         assert_eq!(report.db1_total_files, 5);
         assert_eq!(report.db2_total_files, 6);
         assert_eq!(report.unchanged_files, 1);
@@ -831,21 +889,21 @@ mod tests {
         assert_eq!(report.added_files.len(), 4); // added.txt, dup3.txt, dup4.txt, dup5.txt
         assert_eq!(report.duplicates_db1.len(), 1);
         assert_eq!(report.duplicates_db2.len(), 1);
-        
+
         // Check changed file
         let changed = &report.changed_files[0];
         assert_eq!(changed.path, PathBuf::from("changed.txt"));
         assert_eq!(changed.hash_db1, "hash_old");
         assert_eq!(changed.hash_db2, "hash_new");
-        
+
         // Check duplicates
         assert_eq!(report.duplicates_db1[0].count, 2);
         assert_eq!(report.duplicates_db2[0].count, 3);
-        
+
         fs::remove_file(db1_path).unwrap();
         fs::remove_file(db2_path).unwrap();
     }
-    
+
     #[test]
     fn test_find_duplicates_no_duplicates() {
         let mut db = HashMap::new();
@@ -865,11 +923,11 @@ mod tests {
                 fast_mode: false,
             },
         );
-        
+
         let duplicates = CompareEngine::find_duplicates(&db);
         assert_eq!(duplicates.len(), 0);
     }
-    
+
     #[test]
     fn test_find_duplicates_with_duplicates() {
         let mut db = HashMap::new();
@@ -897,104 +955,110 @@ mod tests {
                 fast_mode: false,
             },
         );
-        
+
         let duplicates = CompareEngine::find_duplicates(&db);
         assert_eq!(duplicates.len(), 1);
-        
+
         let dup_group = &duplicates[0];
         assert_eq!(dup_group.hash, "hash_dup");
         assert_eq!(dup_group.count, 2);
         assert_eq!(dup_group.paths.len(), 2);
     }
-    
+
     #[test]
     fn test_compare_compressed_databases() {
         // Create two plain text databases
         let db1_plain = "test_compare_compressed_db1_plain.txt";
         let db2_plain = "test_compare_compressed_db2_plain.txt";
-        
+
         let content1 = "hash1  sha256  normal  file1.txt\n\
                         hash2  sha256  normal  file2.txt\n\
                         hash3  sha256  normal  file3.txt\n";
-        
+
         let content2 = "hash1  sha256  normal  file1.txt\n\
                         hash2_modified  sha256  normal  file2.txt\n\
                         hash3  sha256  normal  file3.txt\n\
                         hash4  sha256  normal  file4.txt\n";
-        
+
         fs::write(db1_plain, content1).unwrap();
         fs::write(db2_plain, content2).unwrap();
-        
+
         // Compress both databases
         let db1_compressed = DatabaseHandler::compress_database(Path::new(db1_plain)).unwrap();
         let db2_compressed = DatabaseHandler::compress_database(Path::new(db2_plain)).unwrap();
-        
+
         // Test 1: Compare two compressed databases
         let engine = CompareEngine::new();
         let report = engine.compare(&db1_compressed, &db2_compressed).unwrap();
-        
+
         assert_eq!(report.db1_total_files, 3);
         assert_eq!(report.db2_total_files, 4);
         assert_eq!(report.unchanged_files, 2);
         assert_eq!(report.changed_files.len(), 1);
         assert_eq!(report.added_files.len(), 1);
-        
+
         // Test 2: Compare compressed vs plain text
-        let report2 = engine.compare(&db1_compressed, Path::new(db2_plain)).unwrap();
-        
+        let report2 = engine
+            .compare(&db1_compressed, Path::new(db2_plain))
+            .unwrap();
+
         assert_eq!(report2.db1_total_files, 3);
         assert_eq!(report2.db2_total_files, 4);
         assert_eq!(report2.unchanged_files, 2);
         assert_eq!(report2.changed_files.len(), 1);
-        
+
         // Test 3: Compare plain text vs compressed
-        let report3 = engine.compare(Path::new(db1_plain), &db2_compressed).unwrap();
-        
+        let report3 = engine
+            .compare(Path::new(db1_plain), &db2_compressed)
+            .unwrap();
+
         assert_eq!(report3.db1_total_files, 3);
         assert_eq!(report3.db2_total_files, 4);
         assert_eq!(report3.unchanged_files, 2);
         assert_eq!(report3.changed_files.len(), 1);
-        
+
         // Cleanup
         fs::remove_file(db1_plain).unwrap();
         fs::remove_file(db2_plain).unwrap();
         fs::remove_file(db1_compressed).unwrap();
         fs::remove_file(db2_compressed).unwrap();
     }
-    
+
     #[test]
     fn test_compare_report_summary_correctness() {
         // Test that summary counts are mathematically consistent
         let db1_path = "test_compare_summary_db1.txt";
         let db2_path = "test_compare_summary_db2.txt";
-        
+
         let content1 = "hash1  sha256  normal  unchanged.txt\n\
                         hash2  sha256  normal  changed.txt\n\
                         hash3  sha256  normal  removed.txt\n";
-        
+
         let content2 = "hash1  sha256  normal  unchanged.txt\n\
                         hash_new  sha256  normal  changed.txt\n\
                         hash4  sha256  normal  added.txt\n";
-        
+
         fs::write(db1_path, content1).unwrap();
         fs::write(db2_path, content2).unwrap();
-        
+
         let engine = CompareEngine::new();
-        let report = engine.compare(Path::new(db1_path), Path::new(db2_path)).unwrap();
-        
+        let report = engine
+            .compare(Path::new(db1_path), Path::new(db2_path))
+            .unwrap();
+
         // Verify mathematical consistency:
         // unchanged + changed + removed = db1_total
         assert_eq!(
             report.unchanged_files + report.changed_files.len() + report.removed_files.len(),
             report.db1_total_files
         );
-        
+
         // unchanged + changed + added = db2_total
         assert_eq!(
             report.unchanged_files + report.changed_files.len() + report.added_files.len(),
             report.db2_total_files
         );
-        
+
         fs::remove_file(db1_path).unwrap();
         fs::remove_file(db2_path).unwrap();
     }
@@ -1016,7 +1080,9 @@ mod tests {
         fs::write(db2_path, content2).unwrap();
 
         let engine = CompareEngine::new();
-        let report = engine.compare(Path::new(db1_path), Path::new(db2_path)).unwrap();
+        let report = engine
+            .compare(Path::new(db1_path), Path::new(db2_path))
+            .unwrap();
 
         let hashdeep_output = report.to_hashdeep();
 
@@ -1062,7 +1128,9 @@ mod tests {
         fs::write(db2_path, content).unwrap();
 
         let engine = CompareEngine::new();
-        let report = engine.compare(Path::new(db1_path), Path::new(db2_path)).unwrap();
+        let report = engine
+            .compare(Path::new(db1_path), Path::new(db2_path))
+            .unwrap();
 
         let hashdeep_output = report.to_hashdeep();
 

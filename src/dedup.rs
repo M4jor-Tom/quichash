@@ -1,19 +1,19 @@
 // Dedup engine module
 // Finds duplicate files within a directory by comparing hash values
 
+use crate::error::HashUtilityError;
+use crate::hash::HashComputer;
+use crate::ignore_handler::IgnoreHandler;
+use crossbeam_channel::bounded;
+use indicatif::{ProgressBar, ProgressStyle};
+use jwalk::WalkDir;
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
-use crate::hash::HashComputer;
-use crate::error::HashUtilityError;
-use crate::ignore_handler::IgnoreHandler;
-use rayon::prelude::*;
-use indicatif::{ProgressBar, ProgressStyle};
-use crossbeam_channel::bounded;
-use jwalk::WalkDir;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 
 /// Statistics collected during a dedup scan
 #[derive(Debug, Clone, serde::Serialize)]
@@ -57,38 +57,42 @@ impl DedupReport {
     /// Display the dedup report in plain text format
     pub fn display(&self) {
         println!("\n=== Duplicate Files Report ===\n");
-        
+
         // Summary section
         println!("Summary:");
         println!("  Files scanned:     {}", self.stats.files_scanned);
         println!("  Files failed:      {}", self.stats.files_failed);
-        println!("  Total bytes:       {} ({:.2} MB)", 
-            self.stats.total_bytes, 
+        println!(
+            "  Total bytes:       {} ({:.2} MB)",
+            self.stats.total_bytes,
             self.stats.total_bytes as f64 / 1_048_576.0
         );
         println!("  Duplicate groups:  {}", self.stats.duplicate_groups);
         println!("  Duplicate files:   {}", self.stats.duplicate_files);
-        println!("  Wasted space:      {} ({:.2} MB)", 
-            self.stats.wasted_space, 
+        println!(
+            "  Wasted space:      {} ({:.2} MB)",
+            self.stats.wasted_space,
             self.stats.wasted_space as f64 / 1_048_576.0
         );
-        println!("  Duration:          {:.2}s", self.stats.duration.as_secs_f64());
-        
+        println!(
+            "  Duration:          {:.2}s",
+            self.stats.duration.as_secs_f64()
+        );
+
         // Calculate and display throughput
         if self.stats.duration.as_secs_f64() > 0.0 {
-            let throughput_mbps = (self.stats.total_bytes as f64 / 1_048_576.0) / self.stats.duration.as_secs_f64();
+            let throughput_mbps =
+                (self.stats.total_bytes as f64 / 1_048_576.0) / self.stats.duration.as_secs_f64();
             println!("  Throughput:        {:.2} MB/s", throughput_mbps);
         }
-        
+
         // Duplicate groups section (sorted by wasted space, largest first)
         if !self.duplicate_groups.is_empty() {
             println!("\nDuplicate Groups (sorted by wasted space):");
             for group in &self.duplicate_groups {
-                println!("\n  Hash: {} ({} files, {} bytes each, {} bytes wasted)", 
-                    group.hash, 
-                    group.count, 
-                    group.file_size,
-                    group.wasted_space
+                println!(
+                    "\n  Hash: {} ({} files, {} bytes each, {} bytes wasted)",
+                    group.hash, group.count, group.file_size, group.wasted_space
                 );
                 for path in &group.paths {
                     println!("    {}", path.display());
@@ -97,10 +101,10 @@ impl DedupReport {
         } else {
             println!("\nNo duplicate files found.");
         }
-        
+
         println!();
     }
-    
+
     /// Format the dedup report as JSON string
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         #[derive(serde::Serialize)]
@@ -109,12 +113,12 @@ impl DedupReport {
             stats: DedupStats,
             duplicate_groups: Vec<DuplicateGroupJson>,
         }
-        
+
         #[derive(serde::Serialize)]
         struct Metadata {
             timestamp: String,
         }
-        
+
         #[derive(serde::Serialize)]
         struct DuplicateGroupJson {
             hash: String,
@@ -123,21 +127,25 @@ impl DedupReport {
             wasted_space: u64,
             paths: Vec<String>,
         }
-        
+
         let output = JsonOutput {
             metadata: Metadata {
                 timestamp: chrono::Utc::now().to_rfc3339(),
             },
             stats: self.stats.clone(),
-            duplicate_groups: self.duplicate_groups.iter().map(|dg| DuplicateGroupJson {
-                hash: dg.hash.clone(),
-                count: dg.count,
-                file_size: dg.file_size,
-                wasted_space: dg.wasted_space,
-                paths: dg.paths.iter().map(|p| p.display().to_string()).collect(),
-            }).collect(),
+            duplicate_groups: self
+                .duplicate_groups
+                .iter()
+                .map(|dg| DuplicateGroupJson {
+                    hash: dg.hash.clone(),
+                    count: dg.count,
+                    file_size: dg.file_size,
+                    wasted_space: dg.wasted_space,
+                    paths: dg.paths.iter().map(|p| p.display().to_string()).collect(),
+                })
+                .collect(),
         };
-        
+
         serde_json::to_string_pretty(&output)
     }
 }
@@ -147,6 +155,7 @@ pub struct DedupEngine {
     computer: HashComputer,
     fast_mode: bool,
     parallel: bool,
+    quiet: bool,
 }
 
 impl DedupEngine {
@@ -157,62 +166,68 @@ impl DedupEngine {
             computer: HashComputer::new(),
             fast_mode: false,
             parallel: true, // Default to parallel for better performance
+            quiet: false,
         }
     }
-    
+
     /// Enable or disable fast mode for large file hashing
     pub fn with_fast_mode(mut self, fast_mode: bool) -> Self {
         self.fast_mode = fast_mode;
         self
     }
-    
+
     /// Enable or disable parallel processing
     pub fn with_parallel(mut self, parallel: bool) -> Self {
         self.parallel = parallel;
         self
     }
-    
+
+    /// Enable or disable stdout status output
+    pub fn with_quiet(mut self, quiet: bool) -> Self {
+        self.quiet = quiet;
+        self
+    }
+
     /// Scan a directory recursively and find duplicate files
-    /// 
+    ///
     /// # Arguments
     /// * `root` - Root directory to scan
-    /// 
+    ///
     /// # Returns
     /// A DedupReport containing all duplicate groups and statistics
-    pub fn find_duplicates(
-        &self,
-        root: &Path,
-    ) -> Result<DedupReport, HashUtilityError> {
+    pub fn find_duplicates(&self, root: &Path) -> Result<DedupReport, HashUtilityError> {
         let start_time = Instant::now();
-        
+
         // Canonicalize root directory for consistent path handling
         let canonical_root = root.canonicalize().map_err(|e| {
             HashUtilityError::from_io_error(e, "scanning directory", Some(root.to_path_buf()))
         })?;
-        
-        println!("Scanning directory for duplicates: {}", root.display());
-        println!("Using BLAKE3 algorithm (fast and secure)");
-        
-        if self.fast_mode {
+
+        if !self.quiet {
+            println!("Scanning directory for duplicates: {}", root.display());
+            println!("Using BLAKE3 algorithm (fast and secure)");
+        }
+
+        if self.fast_mode && !self.quiet {
             println!("Fast mode enabled: sampling first, middle, and last 100MB of large files");
         }
-        
+
         // Scan directory and compute hashes
         let (hash_map, files_scanned, files_failed, total_bytes) = if self.parallel {
             self.scan_parallel(&canonical_root, start_time)?
         } else {
             self.scan_sequential(&canonical_root, start_time)?
         };
-        
+
         let duration = start_time.elapsed();
-        
+
         // Find duplicates by grouping files with the same hash
         let duplicate_groups = self.find_duplicate_groups(&hash_map);
-        
+
         // Calculate statistics
         let duplicate_files: usize = duplicate_groups.iter().map(|g| g.count).sum();
         let wasted_space: u64 = duplicate_groups.iter().map(|g| g.wasted_space).sum();
-        
+
         let stats = DedupStats {
             files_scanned,
             files_failed,
@@ -222,13 +237,13 @@ impl DedupEngine {
             wasted_space,
             duration,
         };
-        
+
         Ok(DedupReport {
             stats,
             duplicate_groups,
         })
     }
-    
+
     /// Sequential scan implementation
     fn scan_sequential(
         &self,
@@ -237,31 +252,36 @@ impl DedupEngine {
     ) -> Result<(HashMap<String, Vec<(PathBuf, u64)>>, usize, usize, u64), HashUtilityError> {
         // Collect all files
         let files = self.collect_files(canonical_root)?;
-        
+
         println!("Found {} files to process", files.len());
-        
+
         // Track statistics
         let mut files_scanned = 0;
         let mut files_failed = 0;
         let mut total_bytes = 0u64;
-        
+
         // Map from hash to list of (path, size) tuples
         let mut hash_map: HashMap<String, Vec<(PathBuf, u64)>> = HashMap::new();
-        
+
         // Create progress bar
-        let pb = ProgressBar::new(files.len() as u64);
-        pb.set_style(
-            ProgressStyle::default_bar()
-                .template("[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} files ({percent}%) | Processed: {msg}")
-                .unwrap()
-                .progress_chars("=>-")
-        );
-        
+        let pb = if self.quiet {
+            ProgressBar::hidden()
+        } else {
+            let pb = ProgressBar::new(files.len() as u64);
+            pb.set_style(
+                ProgressStyle::default_bar()
+                    .template("[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} files ({percent}%) | Processed: {msg}")
+                    .unwrap()
+                    .progress_chars("=>-"),
+            );
+            pb
+        };
+
         // Process each file
         for file_path in files.iter() {
             // Update progress bar
             pb.set_message(format!("{} OK, {} failed", files_scanned, files_failed));
-            
+
             // Check if file still exists and is accessible
             let metadata = match fs::metadata(file_path) {
                 Ok(m) => m,
@@ -271,16 +291,16 @@ impl DedupEngine {
                     continue;
                 }
             };
-            
+
             let file_size = metadata.len();
-            
+
             // Compute hash for the file (always use BLAKE3)
             let hash_result = if self.fast_mode {
                 self.computer.compute_hash_fast(file_path, "blake3")
             } else {
                 self.computer.compute_hash(file_path, "blake3")
             };
-            
+
             match hash_result {
                 Ok(result) => {
                     // Add to hash map
@@ -288,7 +308,7 @@ impl DedupEngine {
                         .entry(result.hash)
                         .or_insert_with(Vec::new)
                         .push((file_path.clone(), file_size));
-                    
+
                     files_scanned += 1;
                     total_bytes += file_size;
                 }
@@ -297,15 +317,15 @@ impl DedupEngine {
                     files_failed += 1;
                 }
             }
-            
+
             pb.inc(1);
         }
-        
+
         pb.finish_and_clear();
-        
+
         Ok((hash_map, files_scanned, files_failed, total_bytes))
     }
-    
+
     /// Parallel scan implementation using producer-consumer pattern
     fn scan_parallel(
         &self,
@@ -316,56 +336,70 @@ impl DedupEngine {
         let files_scanned = Arc::new(Mutex::new(0usize));
         let files_failed = Arc::new(Mutex::new(0usize));
         let total_bytes = Arc::new(Mutex::new(0u64));
-        
+
         // Create progress bar
-        let pb = ProgressBar::new(0);
-        pb.set_style(
-            ProgressStyle::default_bar()
-                .template("[{elapsed_precise}] Counting... {pos} files found | Processing: {msg}")
-                .unwrap()
-                .progress_chars("=>-")
-        );
-        
+        let pb = if self.quiet {
+            ProgressBar::hidden()
+        } else {
+            let pb = ProgressBar::new(0);
+            pb.set_style(
+                ProgressStyle::default_bar()
+                    .template(
+                        "[{elapsed_precise}] Counting... {pos} files found | Processing: {msg}",
+                    )
+                    .unwrap()
+                    .progress_chars("=>-"),
+            );
+            pb
+        };
+
         // Create bounded channel
         let (sender, receiver) = bounded::<PathBuf>(10000);
-        
+
         // Track total files discovered
         let total_files_discovered = Arc::new(Mutex::new(0usize));
         let discovery_complete = Arc::new(Mutex::new(false));
-        
+
         // Capture fast_mode for use in closure
         let fast_mode = self.fast_mode;
-        
+        let quiet = self.quiet;
+
         // Clone for walker thread
         let walker_root = canonical_root.to_path_buf();
         let total_files_discovered_walker = Arc::clone(&total_files_discovered);
         let discovery_complete_walker = Arc::clone(&discovery_complete);
         let pb_walker = pb.clone();
-        
+
         // Spawn walker thread
         let walker_handle = thread::spawn(move || {
-            let result = Self::walk_directory_streaming(&walker_root, sender, Arc::clone(&total_files_discovered_walker));
-            
-            // Mark discovery as complete
-            let total = *total_files_discovered_walker.lock().unwrap();
-            pb_walker.set_length(total as u64);
-            pb_walker.set_style(
-                ProgressStyle::default_bar()
-                    .template("[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} files ({percent}%) | Processed: {msg}")
-                    .unwrap()
-                    .progress_chars("=>-")
+            let result = Self::walk_directory_streaming(
+                &walker_root,
+                sender,
+                Arc::clone(&total_files_discovered_walker),
             );
+
+            // Mark discovery as complete
+            if !quiet {
+                let total = *total_files_discovered_walker.lock().unwrap();
+                pb_walker.set_length(total as u64);
+                pb_walker.set_style(
+                    ProgressStyle::default_bar()
+                        .template("[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} files ({percent}%) | Processed: {msg}")
+                        .unwrap()
+                        .progress_chars("=>-"),
+                );
+            }
             *discovery_complete_walker.lock().unwrap() = true;
-            
+
             result
         });
-        
+
         // Clone Arc references for parallel closure
         let files_scanned_clone = Arc::clone(&files_scanned);
         let files_failed_clone = Arc::clone(&files_failed);
         let total_bytes_clone = Arc::clone(&total_bytes);
         let pb_clone = pb.clone();
-        
+
         // Use rayon's par_bridge to consume from channel in parallel
         let results: Vec<_> = receiver
             .into_iter()
@@ -381,16 +415,16 @@ impl DedupEngine {
                         return None;
                     }
                 };
-                
+
                 let file_size = metadata.len();
-                
+
                 // Update progress bar
                 let scanned = files_scanned_clone.lock().unwrap();
                 let failed = files_failed_clone.lock().unwrap();
                 pb_clone.set_message(format!("{} OK, {} failed", *scanned, *failed));
                 drop(scanned);
                 drop(failed);
-                
+
                 // Compute hash (always use BLAKE3)
                 let computer = HashComputer::new();
                 let hash_result = if fast_mode {
@@ -398,7 +432,7 @@ impl DedupEngine {
                 } else {
                     computer.compute_hash(&file_path, "blake3")
                 };
-                
+
                 let result = match hash_result {
                     Ok(result) => {
                         // Update counters
@@ -406,7 +440,7 @@ impl DedupEngine {
                         *scanned += 1;
                         let mut bytes = total_bytes_clone.lock().unwrap();
                         *bytes += file_size;
-                        
+
                         Some((result.hash, file_path.clone(), file_size))
                     }
                     Err(e) => {
@@ -416,12 +450,12 @@ impl DedupEngine {
                         None
                     }
                 };
-                
+
                 pb_clone.inc(1);
                 result
             })
             .collect();
-        
+
         // Wait for walker thread
         match walker_handle.join() {
             Ok(walk_result) => {
@@ -433,9 +467,9 @@ impl DedupEngine {
                 eprintln!("Warning: Walker thread panicked: {:?}", e);
             }
         }
-        
+
         pb.finish_and_clear();
-        
+
         // Build hash map from results
         let mut hash_map: HashMap<String, Vec<(PathBuf, u64)>> = HashMap::new();
         for (hash, path, size) in results {
@@ -444,15 +478,15 @@ impl DedupEngine {
                 .or_insert_with(Vec::new)
                 .push((path, size));
         }
-        
+
         // Extract final statistics
         let final_scanned = *files_scanned.lock().unwrap();
         let final_failed = *files_failed.lock().unwrap();
         let final_bytes = *total_bytes.lock().unwrap();
-        
+
         Ok((hash_map, final_scanned, final_failed, final_bytes))
     }
-    
+
     /// Walk directory and send file paths to channel
     fn walk_directory_streaming(
         root: &Path,
@@ -467,7 +501,7 @@ impl DedupEngine {
                 None
             }
         };
-        
+
         // Use jwalk for parallel directory traversal
         for entry_result in WalkDir::new(root)
             .parallelism(jwalk::Parallelism::RayonNewPool(0))
@@ -477,12 +511,12 @@ impl DedupEngine {
             match entry_result {
                 Ok(entry) => {
                     let path = entry.path();
-                    
+
                     // Only process regular files
                     if !entry.file_type().is_file() {
                         continue;
                     }
-                    
+
                     // Check if this path should be ignored
                     if let Some(ref handler) = ignore_handler {
                         if let Ok(rel_path) = path.strip_prefix(root) {
@@ -491,12 +525,12 @@ impl DedupEngine {
                             }
                         }
                     }
-                    
+
                     // Send file path to channel
                     if let Err(_) = sender.send(path) {
                         break;
                     }
-                    
+
                     // Track total files discovered
                     let mut total = total_files_discovered.lock().unwrap();
                     *total += 1;
@@ -506,14 +540,14 @@ impl DedupEngine {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Recursively collect all regular files in a directory tree
     fn collect_files(&self, root: &Path) -> Result<Vec<PathBuf>, HashUtilityError> {
         let mut files = Vec::new();
-        
+
         // Load .hashignore patterns
         let ignore_handler = match IgnoreHandler::new(root) {
             Ok(handler) => Some(handler),
@@ -522,11 +556,11 @@ impl DedupEngine {
                 None
             }
         };
-        
+
         self.collect_files_recursive(root, root, &mut files, ignore_handler.as_ref())?;
         Ok(files)
     }
-    
+
     /// Helper function for recursive file collection
     fn collect_files_recursive(
         &self,
@@ -541,7 +575,7 @@ impl DedupEngine {
                 path: dir.to_path_buf(),
             });
         }
-        
+
         // Read directory entries
         let entries = match fs::read_dir(dir) {
             Ok(entries) => entries,
@@ -550,7 +584,7 @@ impl DedupEngine {
                 return Ok(());
             }
         };
-        
+
         // Process each entry
         for entry_result in entries {
             let entry = match entry_result {
@@ -560,20 +594,24 @@ impl DedupEngine {
                     continue;
                 }
             };
-            
+
             let path = entry.path();
-            
+
             // Get metadata
             let metadata = match entry.metadata() {
                 Ok(metadata) => metadata,
                 Err(e) => {
-                    eprintln!("Warning: Cannot read metadata for {}: {}", path.display(), e);
+                    eprintln!(
+                        "Warning: Cannot read metadata for {}: {}",
+                        path.display(),
+                        e
+                    );
                     continue;
                 }
             };
-            
+
             let is_dir = metadata.is_dir();
-            
+
             // Check if this path should be ignored
             if let Some(handler) = ignore_handler {
                 if let Ok(rel_path) = path.strip_prefix(root) {
@@ -582,19 +620,23 @@ impl DedupEngine {
                     }
                 }
             }
-            
+
             if metadata.is_file() {
                 files.push(path);
             } else if is_dir {
                 if let Err(e) = self.collect_files_recursive(root, &path, files, ignore_handler) {
-                    eprintln!("Warning: Error processing directory {}: {}", path.display(), e);
+                    eprintln!(
+                        "Warning: Error processing directory {}: {}",
+                        path.display(),
+                        e
+                    );
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Find duplicate groups from hash map
     fn find_duplicate_groups(
         &self,
@@ -608,10 +650,10 @@ impl DedupEngine {
                 let count = paths.len();
                 let file_size = paths[0].1; // All files with same hash have same size
                 let wasted_space = (count as u64 - 1) * file_size;
-                
+
                 let mut sorted_paths: Vec<PathBuf> = paths.iter().map(|(p, _)| p.clone()).collect();
                 sorted_paths.sort();
-                
+
                 DuplicateGroupWithSize {
                     hash: hash.clone(),
                     paths: sorted_paths,
@@ -621,10 +663,10 @@ impl DedupEngine {
                 }
             })
             .collect();
-        
+
         // Sort by wasted space (largest first)
         duplicates.sort_by(|a, b| b.wasted_space.cmp(&a.wasted_space));
-        
+
         duplicates
     }
 }

@@ -1,12 +1,12 @@
 // CLI interface module
 // Handles command-line argument parsing and validation
 
+use crate::error::HashUtilityError;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use crate::error::HashUtilityError;
 
 /// Hash Utility - Cryptographic hash computation and verification tool
-/// 
+///
 /// A cross-platform console application for computing cryptographic hashes,
 /// scanning directories, and verifying file integrity.
 #[derive(Parser, Debug)]
@@ -35,28 +35,38 @@ use crate::error::HashUtilityError;
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Command>,
-    
+
     /// File or wildcard pattern to hash (e.g., *.txt, file?.bin, [abc]*.jpg)
     /// If omitted, reads from stdin for piping
     #[arg(value_name = "FILE")]
     pub file: Option<String>,
-    
+
     /// Hash text string directly instead of a file (e.g., --text "hello world")
-    #[arg(short = 't', long = "text", value_name = "TEXT", conflicts_with = "file")]
+    #[arg(
+        short = 't',
+        long = "text",
+        value_name = "TEXT",
+        conflicts_with = "file"
+    )]
     pub text: Option<String>,
-    
+
     /// Hash algorithm to use: md5, sha1, sha256, sha512, sha3-256, blake2b, blake3, xxh3, etc. (use 'hash list' to see all)
-    #[arg(short = 'a', long = "algorithm", value_name = "ALGORITHM", default_value = "blake3")]
+    #[arg(
+        short = 'a',
+        long = "algorithm",
+        value_name = "ALGORITHM",
+        default_value = "blake3"
+    )]
     pub algorithms: Vec<String>,
-    
+
     /// Write output to file instead of stdout
     #[arg(short = 'b', long = "output", value_name = "FILE")]
     pub output: Option<PathBuf>,
-    
+
     /// Fast mode: hash only first/middle/last 100MB of large files (faster but less thorough)
     #[arg(short = 'f', long = "fast")]
     pub fast: bool,
-    
+
     /// Output results as JSON instead of plain text
     #[arg(long = "json")]
     pub json: bool,
@@ -66,45 +76,50 @@ pub struct Cli {
 #[derive(Subcommand, Debug, PartialEq)]
 pub enum Command {
     /// Scan directory and generate hash database
-    /// 
+    ///
     /// Recursively scans a directory and computes hashes for all files,
     /// storing the results in a plain text database file.
     Scan {
         /// Directory or wildcard pattern to scan recursively (e.g., data/*/hashes)
         #[arg(short = 'd', long = "directory", value_name = "DIR")]
         directory: String,
-        
+
         /// Hash algorithm to use (use 'hash list' to see all available algorithms)
-        #[arg(short = 'a', long = "algorithm", value_name = "ALGORITHM", default_value = "blake3")]
+        #[arg(
+            short = 'a',
+            long = "algorithm",
+            value_name = "ALGORITHM",
+            default_value = "blake3"
+        )]
         algorithm: String,
-        
+
         /// Database file path to create (use .xz extension with --compress for automatic compression)
         #[arg(short = 'b', long = "database", value_name = "FILE")]
         database: PathBuf,
-        
+
         /// Sequential mode for old HDDs (processes files one by one instead of parallel)
         #[arg(long = "hdd")]
         hdd: bool,
-        
+
         /// Fast mode: hash only first/middle/last 100MB of large files (faster but less thorough)
         #[arg(short = 'f', long = "fast")]
         fast: bool,
-        
+
         /// Output format: 'standard' (hash filepath) or 'hashdeep' (CSV format with size, hash, filename)
         #[arg(long = "format", value_name = "FORMAT", default_value = "standard")]
         format: String,
-        
+
         /// Output results as JSON with metadata instead of plain text
         #[arg(long = "json")]
         json: bool,
-        
+
         /// Compress output database with LZMA compression (creates .xz file, saves ~70% space)
         #[arg(long = "compress")]
         compress: bool,
     },
-    
+
     /// Verify directory against hash database
-    /// 
+    ///
     /// Compares current file hashes against a stored database to detect
     /// modifications, deletions, and new files.
     Verify {
@@ -112,36 +127,36 @@ pub enum Command {
         /// Supports standard, hashdeep, and compressed .xz formats
         #[arg(short = 'b', long = "database", value_name = "FILE")]
         database: String,
-        
+
         /// Directory or wildcard pattern to verify (e.g., data/*, dir?)
         #[arg(short = 'd', long = "directory", value_name = "DIR")]
         directory: String,
-        
+
         /// Sequential mode for old HDDs (processes files one by one instead of parallel)
         #[arg(long = "hdd")]
         hdd: bool,
-        
+
         /// Output verification report as JSON instead of plain text
         #[arg(long = "json")]
         json: bool,
     },
-    
+
     /// Benchmark hash algorithms
-    /// 
+    ///
     /// Tests all supported hash algorithms and displays their throughput
     /// on the current hardware.
     Benchmark {
         /// Size of test data in megabytes (larger = more accurate, but slower)
         #[arg(short = 's', long = "size", value_name = "MB", default_value = "100")]
         size_mb: usize,
-        
+
         /// Output benchmark results as JSON instead of formatted table
         #[arg(long = "json")]
         json: bool,
     },
-    
+
     /// List available hash algorithms
-    /// 
+    ///
     /// Displays all supported hash algorithms with their properties,
     /// including output size and post-quantum resistance status.
     List {
@@ -149,9 +164,9 @@ pub enum Command {
         #[arg(long = "json")]
         json: bool,
     },
-    
+
     /// Compare two hash databases
-    /// 
+    ///
     /// Compares two hash database files to identify unchanged files, changed files,
     /// moved files, removed files, and added files.
     /// Supports standard, hashdeep, and compressed (.xz) database formats.
@@ -172,29 +187,29 @@ pub enum Command {
         #[arg(long = "format", value_name = "FORMAT", default_value = "plain-text")]
         format: String,
     },
-    
+
     /// Display version information
-    /// 
+    ///
     /// Shows the current version of the Hash Utility.
     Version,
-    
+
     /// Find duplicate files in a directory
-    /// 
+    ///
     /// Scans a directory recursively and identifies files with identical content
     /// by comparing their hash values. Always uses BLAKE3 algorithm for speed and security.
     Dedup {
         /// Directory to scan for duplicates
         #[arg(short = 'd', long = "directory", value_name = "DIR")]
         directory: PathBuf,
-        
+
         /// Fast mode: hash only first/middle/last 100MB of large files (faster but less thorough)
         #[arg(short = 'f', long = "fast")]
         fast: bool,
-        
+
         /// Write output to file instead of stdout
         #[arg(short = 'b', long = "output", value_name = "FILE")]
         output: Option<PathBuf>,
-        
+
         /// Output results as JSON instead of plain text
         #[arg(long = "json")]
         json: bool,
@@ -221,10 +236,10 @@ pub enum Command {
 }
 
 /// Parse command-line arguments
-/// 
+///
 /// # Returns
 /// Parsed CLI structure containing the command and its arguments
-/// 
+///
 /// # Errors
 /// Returns an error if arguments are invalid or missing required values
 pub fn parse_args() -> Result<Cli, HashUtilityError> {
@@ -233,13 +248,14 @@ pub fn parse_args() -> Result<Cli, HashUtilityError> {
         Err(e) => {
             // Check if this is a help or version request (which clap treats as "errors")
             // These should be printed and exit successfully
-            if e.kind() == clap::error::ErrorKind::DisplayHelp 
-                || e.kind() == clap::error::ErrorKind::DisplayVersion {
+            if e.kind() == clap::error::ErrorKind::DisplayHelp
+                || e.kind() == clap::error::ErrorKind::DisplayVersion
+            {
                 // Print the help/version message and exit successfully
                 print!("{}", e);
                 std::process::exit(0);
             }
-            
+
             // For actual errors, return our custom error type
             Err(HashUtilityError::InvalidArguments {
                 message: e.to_string(),
@@ -259,7 +275,7 @@ mod tests {
     fn test_parse_hash_command() {
         let args = vec!["hash", "test.txt", "-a", "sha256"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, Some("test.txt".to_string()));
         assert_eq!(cli.algorithms, vec!["sha256"]);
@@ -267,85 +283,103 @@ mod tests {
         assert_eq!(cli.fast, false);
         assert_eq!(cli.json, false);
     }
-    
+
     #[test]
     fn test_parse_hash_command_multiple_algorithms() {
         let args = vec!["hash", "test.txt", "-a", "sha256", "-a", "md5"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, Some("test.txt".to_string()));
         assert_eq!(cli.algorithms, vec!["sha256", "md5"]);
         assert_eq!(cli.output, None);
         assert_eq!(cli.fast, false);
     }
-    
+
     #[test]
     fn test_parse_hash_command_with_output() {
         let args = vec!["hash", "test.txt", "-a", "sha256", "-b", "output.txt"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, Some("test.txt".to_string()));
         assert_eq!(cli.algorithms, vec!["sha256"]);
         assert_eq!(cli.output, Some(PathBuf::from("output.txt")));
         assert_eq!(cli.fast, false);
     }
-    
+
     #[test]
     fn test_parse_hash_command_long_flags() {
         let args = vec!["hash", "test.txt", "--algorithm", "sha256"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, Some("test.txt".to_string()));
         assert_eq!(cli.algorithms, vec!["sha256"]);
         assert_eq!(cli.fast, false);
     }
-    
+
     #[test]
     fn test_parse_hash_command_with_fast_mode() {
         let args = vec!["hash", "test.txt", "-a", "sha256", "-f"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, Some("test.txt".to_string()));
         assert_eq!(cli.algorithms, vec!["sha256"]);
         assert_eq!(cli.output, None);
         assert_eq!(cli.fast, true);
     }
-    
+
     #[test]
     fn test_parse_hash_command_with_fast_mode_long_flag() {
         let args = vec!["hash", "test.txt", "--fast"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, Some("test.txt".to_string()));
         assert_eq!(cli.algorithms, vec!["blake3"]); // default
         assert_eq!(cli.output, None);
         assert_eq!(cli.fast, true);
     }
-    
+
     #[test]
     fn test_parse_hash_command_with_fast_and_multiple_algorithms() {
         let args = vec!["hash", "test.txt", "-a", "sha256", "-a", "md5", "-f"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, Some("test.txt".to_string()));
         assert_eq!(cli.algorithms, vec!["sha256", "md5"]);
         assert_eq!(cli.output, None);
         assert_eq!(cli.fast, true);
     }
-    
+
     #[test]
     fn test_parse_scan_command() {
-        let args = vec!["hash", "scan", "-d", "/path/to/dir", "-a", "sha256", "-b", "hashes.txt"];
+        let args = vec![
+            "hash",
+            "scan",
+            "-d",
+            "/path/to/dir",
+            "-a",
+            "sha256",
+            "-b",
+            "hashes.txt",
+        ];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Scan { directory, algorithm, database, hdd, fast, format, json, compress }) => {
+            Some(Command::Scan {
+                directory,
+                algorithm,
+                database,
+                hdd,
+                fast,
+                format,
+                json,
+                compress,
+            }) => {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
@@ -358,14 +392,33 @@ mod tests {
             _ => panic!("Expected Scan command"),
         }
     }
-    
+
     #[test]
     fn test_parse_scan_command_with_hdd() {
-        let args = vec!["hash", "scan", "-d", "/path/to/dir", "-a", "sha256", "-b", "hashes.txt", "--hdd"];
+        let args = vec![
+            "hash",
+            "scan",
+            "-d",
+            "/path/to/dir",
+            "-a",
+            "sha256",
+            "-b",
+            "hashes.txt",
+            "--hdd",
+        ];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Scan { directory, algorithm, database, hdd, fast, format, json, compress }) => {
+            Some(Command::Scan {
+                directory,
+                algorithm,
+                database,
+                hdd,
+                fast,
+                format,
+                json,
+                compress,
+            }) => {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
@@ -378,14 +431,33 @@ mod tests {
             _ => panic!("Expected Scan command"),
         }
     }
-    
+
     #[test]
     fn test_parse_scan_command_long_flags() {
-        let args = vec!["hash", "scan", "--directory", "/path/to/dir", "--algorithm", "sha256", "--database", "hashes.txt", "--hdd"];
+        let args = vec![
+            "hash",
+            "scan",
+            "--directory",
+            "/path/to/dir",
+            "--algorithm",
+            "sha256",
+            "--database",
+            "hashes.txt",
+            "--hdd",
+        ];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Scan { directory, algorithm, database, hdd, fast, format, json, compress }) => {
+            Some(Command::Scan {
+                directory,
+                algorithm,
+                database,
+                hdd,
+                fast,
+                format,
+                json,
+                compress,
+            }) => {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
@@ -398,14 +470,19 @@ mod tests {
             _ => panic!("Expected Scan command"),
         }
     }
-    
+
     #[test]
     fn test_parse_verify_command() {
         let args = vec!["hash", "verify", "-b", "hashes.txt", "-d", "/path/to/dir"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Verify { database, directory, hdd, json }) => {
+            Some(Command::Verify {
+                database,
+                directory,
+                hdd,
+                json,
+            }) => {
                 assert_eq!(database, "hashes.txt");
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(hdd, false); // parallel by default
@@ -414,14 +491,26 @@ mod tests {
             _ => panic!("Expected Verify command"),
         }
     }
-    
+
     #[test]
     fn test_parse_verify_command_long_flags() {
-        let args = vec!["hash", "verify", "--database", "hashes.txt", "--directory", "/path/to/dir"];
+        let args = vec![
+            "hash",
+            "verify",
+            "--database",
+            "hashes.txt",
+            "--directory",
+            "/path/to/dir",
+        ];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Verify { database, directory, hdd, json }) => {
+            Some(Command::Verify {
+                database,
+                directory,
+                hdd,
+                json,
+            }) => {
                 assert_eq!(database, "hashes.txt");
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(hdd, false); // parallel by default
@@ -430,14 +519,27 @@ mod tests {
             _ => panic!("Expected Verify command"),
         }
     }
-    
+
     #[test]
     fn test_parse_verify_command_with_hdd() {
-        let args = vec!["hash", "verify", "-b", "hashes.txt", "-d", "/path/to/dir", "--hdd"];
+        let args = vec![
+            "hash",
+            "verify",
+            "-b",
+            "hashes.txt",
+            "-d",
+            "/path/to/dir",
+            "--hdd",
+        ];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Verify { database, directory, hdd, json }) => {
+            Some(Command::Verify {
+                database,
+                directory,
+                hdd,
+                json,
+            }) => {
                 assert_eq!(database, "hashes.txt");
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(hdd, true); // sequential mode
@@ -446,12 +548,12 @@ mod tests {
             _ => panic!("Expected Verify command"),
         }
     }
-    
+
     #[test]
     fn test_parse_benchmark_command() {
         let args = vec!["hash", "benchmark"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
             Some(Command::Benchmark { size_mb, json }) => {
                 assert_eq!(size_mb, 100); // default value
@@ -460,12 +562,12 @@ mod tests {
             _ => panic!("Expected Benchmark command"),
         }
     }
-    
+
     #[test]
     fn test_parse_benchmark_command_with_size() {
         let args = vec!["hash", "benchmark", "-s", "50"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
             Some(Command::Benchmark { size_mb, json }) => {
                 assert_eq!(size_mb, 50);
@@ -474,12 +576,12 @@ mod tests {
             _ => panic!("Expected Benchmark command"),
         }
     }
-    
+
     #[test]
     fn test_parse_benchmark_command_long_flag() {
         let args = vec!["hash", "benchmark", "--size", "200"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
             Some(Command::Benchmark { size_mb, json }) => {
                 assert_eq!(size_mb, 200);
@@ -488,12 +590,12 @@ mod tests {
             _ => panic!("Expected Benchmark command"),
         }
     }
-    
+
     #[test]
     fn test_parse_list_command() {
         let args = vec!["hash", "list"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
             Some(Command::List { json }) => {
                 assert_eq!(json, false);
@@ -501,99 +603,106 @@ mod tests {
             _ => panic!("Expected List command"),
         }
     }
-    
+
     #[test]
     fn test_parse_invalid_subcommand() {
         // Test that an invalid subcommand is rejected
         let args = vec!["hash", "invalid-subcommand", "-d", "dir"];
         let result = Cli::try_parse_from(args);
-        
+
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_parse_file_as_positional() {
         // Test that a file can be specified as positional argument
         let args = vec!["hash", "myfile.txt"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, Some("myfile.txt".to_string()));
     }
-    
+
     #[test]
     fn test_parse_hash_command_no_args() {
         // Hash command without any args should work (uses defaults and stdin)
         let args = vec!["hash"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, None);
         assert_eq!(cli.algorithms, vec!["blake3"]); // default algorithm
         assert_eq!(cli.output, None);
         assert_eq!(cli.fast, false);
     }
-    
+
     #[test]
     fn test_parse_scan_missing_database() {
         // Scan command requires -b flag
         let args = vec!["hash", "scan", "-d", "/path/to/dir", "-a", "sha256"];
         let result = Cli::try_parse_from(args);
-        
+
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_parse_verify_missing_database() {
         // Verify command requires -b flag
         let args = vec!["hash", "verify", "-d", "/path/to/dir"];
         let result = Cli::try_parse_from(args);
-        
+
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_hash_command_default_algorithm() {
         let args = vec!["hash", "test.txt"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.algorithms, vec!["blake3"]); // default algorithm
         assert_eq!(cli.fast, false); // default fast mode
     }
-    
+
     #[test]
     fn test_parse_hash_command_without_file() {
         // Hash command without file should work (for stdin)
         let args = vec!["hash", "-a", "sha256"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, None);
         assert_eq!(cli.algorithms, vec!["sha256"]);
         assert_eq!(cli.output, None);
         assert_eq!(cli.fast, false);
     }
-    
+
     #[test]
     fn test_parse_hash_command_stdin_with_multiple_algorithms() {
         let args = vec!["hash", "-a", "sha256", "-a", "md5"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, None);
         assert_eq!(cli.algorithms, vec!["sha256", "md5"]);
         assert_eq!(cli.output, None);
         assert_eq!(cli.fast, false);
     }
-    
+
     #[test]
     fn test_scan_command_default_algorithm() {
         let args = vec!["hash", "scan", "-d", "/path/to/dir", "-b", "hashes.txt"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Scan { algorithm, fast, format, json, compress, .. }) => {
+            Some(Command::Scan {
+                algorithm,
+                fast,
+                format,
+                json,
+                compress,
+                ..
+            }) => {
                 assert_eq!(algorithm, "blake3"); // default algorithm
                 assert_eq!(fast, false); // default fast mode
                 assert_eq!(format, "standard"); // default format
@@ -603,14 +712,33 @@ mod tests {
             _ => panic!("Expected Scan command"),
         }
     }
-    
+
     #[test]
     fn test_parse_scan_command_with_fast_mode() {
-        let args = vec!["hash", "scan", "-d", "/path/to/dir", "-a", "sha256", "-b", "hashes.txt", "-f"];
+        let args = vec![
+            "hash",
+            "scan",
+            "-d",
+            "/path/to/dir",
+            "-a",
+            "sha256",
+            "-b",
+            "hashes.txt",
+            "-f",
+        ];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Scan { directory, algorithm, database, hdd, fast, format, json, compress }) => {
+            Some(Command::Scan {
+                directory,
+                algorithm,
+                database,
+                hdd,
+                fast,
+                format,
+                json,
+                compress,
+            }) => {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
@@ -623,14 +751,33 @@ mod tests {
             _ => panic!("Expected Scan command"),
         }
     }
-    
+
     #[test]
     fn test_parse_scan_command_with_fast_mode_long_flag() {
-        let args = vec!["hash", "scan", "-d", "/path/to/dir", "-a", "sha256", "-b", "hashes.txt", "--fast"];
+        let args = vec![
+            "hash",
+            "scan",
+            "-d",
+            "/path/to/dir",
+            "-a",
+            "sha256",
+            "-b",
+            "hashes.txt",
+            "--fast",
+        ];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Scan { directory, algorithm, database, hdd, fast, format, json, compress }) => {
+            Some(Command::Scan {
+                directory,
+                algorithm,
+                database,
+                hdd,
+                fast,
+                format,
+                json,
+                compress,
+            }) => {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
@@ -643,14 +790,34 @@ mod tests {
             _ => panic!("Expected Scan command"),
         }
     }
-    
+
     #[test]
     fn test_parse_scan_command_with_hdd_and_fast() {
-        let args = vec!["hash", "scan", "-d", "/path/to/dir", "-a", "sha256", "-b", "hashes.txt", "--hdd", "-f"];
+        let args = vec![
+            "hash",
+            "scan",
+            "-d",
+            "/path/to/dir",
+            "-a",
+            "sha256",
+            "-b",
+            "hashes.txt",
+            "--hdd",
+            "-f",
+        ];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Scan { directory, algorithm, database, hdd, fast, format, json, compress }) => {
+            Some(Command::Scan {
+                directory,
+                algorithm,
+                database,
+                hdd,
+                fast,
+                format,
+                json,
+                compress,
+            }) => {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
@@ -663,12 +830,12 @@ mod tests {
             _ => panic!("Expected Scan command"),
         }
     }
-    
+
     #[test]
     fn test_parse_hash_command_with_text() {
         let args = vec!["hash", "--text", "hello world", "-a", "sha256"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, None);
         assert_eq!(cli.text, Some("hello world".to_string()));
@@ -676,12 +843,12 @@ mod tests {
         assert_eq!(cli.output, None);
         assert_eq!(cli.fast, false);
     }
-    
+
     #[test]
     fn test_parse_hash_command_with_text_short_flag() {
         let args = vec!["hash", "-t", "test string", "-a", "md5"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, None);
         assert_eq!(cli.text, Some("test string".to_string()));
@@ -689,12 +856,12 @@ mod tests {
         assert_eq!(cli.output, None);
         assert_eq!(cli.fast, false);
     }
-    
+
     #[test]
     fn test_parse_hash_command_with_text_multiple_algorithms() {
         let args = vec!["hash", "-t", "hello", "-a", "sha256", "-a", "md5"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, None);
         assert_eq!(cli.text, Some("hello".to_string()));
@@ -702,23 +869,42 @@ mod tests {
         assert_eq!(cli.output, None);
         assert_eq!(cli.fast, false);
     }
-    
+
     #[test]
     fn test_parse_hash_command_text_conflicts_with_file() {
         // Test that --text and file argument conflict
         let args = vec!["hash", "file.txt", "-t", "hello"];
         let result = Cli::try_parse_from(args);
-        
+
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_parse_scan_command_with_compress() {
-        let args = vec!["hash", "scan", "-d", "/path/to/dir", "-a", "sha256", "-b", "hashes.txt", "--compress"];
+        let args = vec![
+            "hash",
+            "scan",
+            "-d",
+            "/path/to/dir",
+            "-a",
+            "sha256",
+            "-b",
+            "hashes.txt",
+            "--compress",
+        ];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Scan { directory, algorithm, database, hdd, fast, format, json, compress }) => {
+            Some(Command::Scan {
+                directory,
+                algorithm,
+                database,
+                hdd,
+                fast,
+                format,
+                json,
+                compress,
+            }) => {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
@@ -731,14 +917,36 @@ mod tests {
             _ => panic!("Expected Scan command"),
         }
     }
-    
+
     #[test]
     fn test_parse_scan_command_with_all_flags() {
-        let args = vec!["hash", "scan", "-d", "/path/to/dir", "-a", "sha256", "-b", "hashes.txt", "--hdd", "-f", "--compress", "--json"];
+        let args = vec![
+            "hash",
+            "scan",
+            "-d",
+            "/path/to/dir",
+            "-a",
+            "sha256",
+            "-b",
+            "hashes.txt",
+            "--hdd",
+            "-f",
+            "--compress",
+            "--json",
+        ];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Scan { directory, algorithm, database, hdd, fast, format, json, compress }) => {
+            Some(Command::Scan {
+                directory,
+                algorithm,
+                database,
+                hdd,
+                fast,
+                format,
+                json,
+                compress,
+            }) => {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
@@ -751,12 +959,20 @@ mod tests {
             _ => panic!("Expected Scan command"),
         }
     }
-    
+
     #[test]
     fn test_parse_hash_command_with_text_and_output() {
-        let args = vec!["hash", "-t", "hello world", "-a", "sha256", "-b", "output.txt"];
+        let args = vec![
+            "hash",
+            "-t",
+            "hello world",
+            "-a",
+            "sha256",
+            "-b",
+            "output.txt",
+        ];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, None);
         assert_eq!(cli.text, Some("hello world".to_string()));
@@ -764,14 +980,19 @@ mod tests {
         assert_eq!(cli.output, Some(PathBuf::from("output.txt")));
         assert_eq!(cli.fast, false);
     }
-    
+
     #[test]
     fn test_parse_compare_command() {
         let args = vec!["hash", "compare", "db1.txt", "db2.txt"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Compare { database1, database2, output, format }) => {
+            Some(Command::Compare {
+                database1,
+                database2,
+                output,
+                format,
+            }) => {
                 assert_eq!(database1, PathBuf::from("db1.txt"));
                 assert_eq!(database2, PathBuf::from("db2.txt"));
                 assert_eq!(output, None);
@@ -780,14 +1001,19 @@ mod tests {
             _ => panic!("Expected Compare command"),
         }
     }
-    
+
     #[test]
     fn test_parse_compare_command_with_output() {
         let args = vec!["hash", "compare", "db1.txt", "db2.txt", "-b", "report.txt"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Compare { database1, database2, output, format }) => {
+            Some(Command::Compare {
+                database1,
+                database2,
+                output,
+                format,
+            }) => {
                 assert_eq!(database1, PathBuf::from("db1.txt"));
                 assert_eq!(database2, PathBuf::from("db2.txt"));
                 assert_eq!(output, Some(PathBuf::from("report.txt")));
@@ -796,14 +1022,26 @@ mod tests {
             _ => panic!("Expected Compare command"),
         }
     }
-    
+
     #[test]
     fn test_parse_compare_command_with_output_long_flag() {
-        let args = vec!["hash", "compare", "db1.txt", "db2.txt", "--output", "report.txt"];
+        let args = vec![
+            "hash",
+            "compare",
+            "db1.txt",
+            "db2.txt",
+            "--output",
+            "report.txt",
+        ];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Compare { database1, database2, output, format }) => {
+            Some(Command::Compare {
+                database1,
+                database2,
+                output,
+                format,
+            }) => {
                 assert_eq!(database1, PathBuf::from("db1.txt"));
                 assert_eq!(database2, PathBuf::from("db2.txt"));
                 assert_eq!(output, Some(PathBuf::from("report.txt")));
@@ -812,14 +1050,19 @@ mod tests {
             _ => panic!("Expected Compare command"),
         }
     }
-    
+
     #[test]
     fn test_parse_compare_command_with_json_format() {
         let args = vec!["hash", "compare", "db1.txt", "db2.txt", "--format", "json"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Compare { database1, database2, output, format }) => {
+            Some(Command::Compare {
+                database1,
+                database2,
+                output,
+                format,
+            }) => {
                 assert_eq!(database1, PathBuf::from("db1.txt"));
                 assert_eq!(database2, PathBuf::from("db2.txt"));
                 assert_eq!(output, None);
@@ -828,14 +1071,21 @@ mod tests {
             _ => panic!("Expected Compare command"),
         }
     }
-    
+
     #[test]
     fn test_parse_compare_command_with_hashdeep_format() {
-        let args = vec!["hash", "compare", "db1.txt", "db2.txt", "--format", "hashdeep"];
+        let args = vec![
+            "hash", "compare", "db1.txt", "db2.txt", "--format", "hashdeep",
+        ];
         let cli = Cli::try_parse_from(args).unwrap();
 
         match cli.command {
-            Some(Command::Compare { database1, database2, output, format }) => {
+            Some(Command::Compare {
+                database1,
+                database2,
+                output,
+                format,
+            }) => {
                 assert_eq!(database1, PathBuf::from("db1.txt"));
                 assert_eq!(database2, PathBuf::from("db2.txt"));
                 assert_eq!(output, None);
@@ -844,14 +1094,28 @@ mod tests {
             _ => panic!("Expected Compare command"),
         }
     }
-    
+
     #[test]
     fn test_parse_compare_command_with_all_options() {
-        let args = vec!["hash", "compare", "db1.txt", "db2.txt", "-b", "report.json", "--format", "json"];
+        let args = vec![
+            "hash",
+            "compare",
+            "db1.txt",
+            "db2.txt",
+            "-b",
+            "report.json",
+            "--format",
+            "json",
+        ];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Compare { database1, database2, output, format }) => {
+            Some(Command::Compare {
+                database1,
+                database2,
+                output,
+                format,
+            }) => {
                 assert_eq!(database1, PathBuf::from("db1.txt"));
                 assert_eq!(database2, PathBuf::from("db2.txt"));
                 assert_eq!(output, Some(PathBuf::from("report.json")));
@@ -860,14 +1124,19 @@ mod tests {
             _ => panic!("Expected Compare command"),
         }
     }
-    
+
     #[test]
     fn test_parse_compare_command_with_compressed_databases() {
         let args = vec!["hash", "compare", "db1.txt.xz", "db2.txt.xz"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
-            Some(Command::Compare { database1, database2, output, format }) => {
+            Some(Command::Compare {
+                database1,
+                database2,
+                output,
+                format,
+            }) => {
                 assert_eq!(database1, PathBuf::from("db1.txt.xz"));
                 assert_eq!(database2, PathBuf::from("db2.txt.xz"));
                 assert_eq!(output, None);
@@ -876,21 +1145,21 @@ mod tests {
             _ => panic!("Expected Compare command"),
         }
     }
-    
+
     #[test]
     fn test_parse_compare_command_missing_database2() {
         // Compare command requires both database arguments
         let args = vec!["hash", "compare", "db1.txt"];
         let result = Cli::try_parse_from(args);
-        
+
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_parse_version_command() {
         let args = vec!["hash", "version"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         match cli.command {
             Some(Command::Version) => {
                 // Success - version command parsed correctly

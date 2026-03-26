@@ -251,17 +251,17 @@ fn get_international_test_filenames() -> Vec<(&'static str, &'static str)> {
 fn test_international_filenames_scan() {
     let test_dir = "test_international_files";
     let output_db = "test_international_output.txt";
-    
+
     // Create test directory
     fs::create_dir_all(test_dir).expect("Failed to create test directory");
-    
+
     // Create files with international names
     let test_filenames = get_international_test_filenames();
     let mut created_files = Vec::new();
-    
+
     for (lang, filename) in &test_filenames {
         let file_path = PathBuf::from(test_dir).join(filename);
-        
+
         // Try to create the file - some filesystems may not support all characters
         match fs::write(&file_path, format!("Test content for {}", lang)) {
             Ok(_) => {
@@ -274,41 +274,56 @@ fn test_international_filenames_scan() {
             }
         }
     }
-    
-    println!("\nSuccessfully created {}/{} test files (200+ languages with 80+ char names)", created_files.len(), test_filenames.len());
-    
+
+    println!(
+        "\nSuccessfully created {}/{} test files (200+ languages with 80+ char names)",
+        created_files.len(),
+        test_filenames.len()
+    );
+
     // Run scan command
     let output = Command::new("cargo")
-        .args(&["run", "--release", "--", "scan", "-d", test_dir, "-b", output_db])
+        .args(&[
+            "run",
+            "--release",
+            "--",
+            "scan",
+            "-d",
+            test_dir,
+            "-b",
+            output_db,
+        ])
         .output()
         .expect("Failed to execute scan command");
-    
+
     println!("\nScan output:");
     println!("{}", String::from_utf8_lossy(&output.stdout));
-    
+
     if !output.status.success() {
         eprintln!("Scan stderr:");
         eprintln!("{}", String::from_utf8_lossy(&output.stderr));
         panic!("Scan command failed");
     }
-    
+
     // Verify output database exists
-    assert!(PathBuf::from(output_db).exists(), "Output database was not created");
-    
+    assert!(
+        PathBuf::from(output_db).exists(),
+        "Output database was not created"
+    );
+
     // Read and verify database content
-    let db_content = fs::read_to_string(output_db)
-        .expect("Failed to read output database");
-    
+    let db_content = fs::read_to_string(output_db).expect("Failed to read output database");
+
     println!("\nDatabase content preview (first 10 lines):");
     for (i, line) in db_content.lines().take(10).enumerate() {
         println!("{}: {}", i + 1, line);
     }
-    
+
     // Verify that files were processed
     let line_count = db_content.lines().count();
     println!("\nTotal lines in database: {}", line_count);
     assert!(line_count > 0, "Database is empty");
-    
+
     // Verify each created file appears in the database
     let mut found_count = 0;
     for (lang, filename, _) in &created_files {
@@ -318,19 +333,26 @@ fn test_international_filenames_scan() {
             eprintln!("⚠ File not found in database: {} ({})", filename, lang);
         }
     }
-    
-    println!("\nFound {}/{} files in database", found_count, created_files.len());
-    
+
+    println!(
+        "\nFound {}/{} files in database",
+        found_count,
+        created_files.len()
+    );
+
     // We expect at least 75% of files to be processed successfully (some filesystems may have limitations)
     let success_rate = (found_count as f64 / created_files.len() as f64) * 100.0;
     println!("Success rate: {:.1}%", success_rate);
-    assert!(success_rate >= 75.0, 
-        "Too many files failed to process: only {:.1}% success rate", success_rate);
-    
+    assert!(
+        success_rate >= 75.0,
+        "Too many files failed to process: only {:.1}% success rate",
+        success_rate
+    );
+
     // Cleanup
     fs::remove_dir_all(test_dir).ok();
     fs::remove_file(output_db).ok();
-    
+
     println!("\n✓ International filename test passed!");
 }
 
@@ -338,7 +360,7 @@ fn test_international_filenames_scan() {
 fn test_international_filenames_hash() {
     let test_dir = "test_international_hash";
     fs::create_dir_all(test_dir).expect("Failed to create test directory");
-    
+
     // Test a subset of challenging filenames
     let test_cases = vec![
         ("Russian", "тестовый_файл.txt"),
@@ -348,12 +370,12 @@ fn test_international_filenames_hash() {
         ("Emoji", "test_😀🎉.txt"),
         ("Mixed", "test_тест_测试.txt"),
     ];
-    
+
     let mut success_count = 0;
-    
+
     for (lang, filename) in &test_cases {
         let file_path = PathBuf::from(test_dir).join(filename);
-        
+
         // Create test file
         match fs::write(&file_path, format!("Content for {}", lang)) {
             Ok(_) => {
@@ -362,7 +384,7 @@ fn test_international_filenames_hash() {
                     .args(&["run", "--release", "--", file_path.to_str().unwrap()])
                     .output()
                     .expect("Failed to execute hash command");
-                
+
                 if output.status.success() {
                     let stdout = String::from_utf8_lossy(&output.stdout);
                     println!("✓ Hashed: {} ({})", filename, lang);
@@ -378,14 +400,20 @@ fn test_international_filenames_hash() {
             }
         }
     }
-    
+
     // Cleanup
     fs::remove_dir_all(test_dir).ok();
-    
-    println!("\nHashed {}/{} files successfully", success_count, test_cases.len());
-    assert!(success_count >= test_cases.len() / 2, 
-        "Too many hash operations failed");
-    
+
+    println!(
+        "\nHashed {}/{} files successfully",
+        success_count,
+        test_cases.len()
+    );
+    assert!(
+        success_count >= test_cases.len() / 2,
+        "Too many hash operations failed"
+    );
+
     println!("✓ International filename hash test passed!");
 }
 
@@ -394,7 +422,7 @@ fn test_progress_bar_with_unicode_filenames() {
     // This test ensures the progress bar doesn't break with unicode filenames
     let test_dir = "test_progress_unicode";
     fs::create_dir_all(test_dir).expect("Failed to create test directory");
-    
+
     // Create files with various unicode characters
     let filenames = vec![
         "file_русский.txt",
@@ -406,25 +434,36 @@ fn test_progress_bar_with_unicode_filenames() {
         "file_ελληνικά.txt",
         "file_😀😊.txt",
     ];
-    
+
     for filename in &filenames {
         let file_path = PathBuf::from(test_dir).join(filename);
         fs::write(&file_path, "test content").ok();
     }
-    
+
     // Run scan with progress bar
     let output = Command::new("cargo")
-        .args(&["run", "--release", "--", "scan", "-d", test_dir, "-b", "test_progress_output.txt"])
+        .args(&[
+            "run",
+            "--release",
+            "--",
+            "scan",
+            "-d",
+            test_dir,
+            "-b",
+            "test_progress_output.txt",
+        ])
         .output()
         .expect("Failed to execute scan command");
-    
+
     // Check that scan completed successfully
-    assert!(output.status.success(), 
-        "Scan failed with unicode filenames: {}", 
-        String::from_utf8_lossy(&output.stderr));
-    
+    assert!(
+        output.status.success(),
+        "Scan failed with unicode filenames: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
     println!("✓ Progress bar handled unicode filenames correctly");
-    
+
     // Cleanup
     fs::remove_dir_all(test_dir).ok();
     fs::remove_file("test_progress_output.txt").ok();
