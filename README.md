@@ -16,7 +16,7 @@ High-performance cryptographic hash utility with SIMD optimization.
 - **Database Comparison**: Compare two databases to identify changes, moves, and differences
 - **Database Analysis**: Analyze database statistics, duplicates, and potential space savings
 - **Deduplication**: Find and report duplicate files based on hash comparison
-- **.hashignore**: Exclude files using gitignore patterns
+- **.hashignore**: Exclude files using gitignore-style patterns
 - **Formats**: Standard, hashdeep, JSON
 - **Compression**: LZMA compression for databases
 - **Cross-Platform**: Linux, macOS, Windows, FreeBSD
@@ -255,7 +255,25 @@ hash list --json                  # JSON output
 
 ## .hashignore
 
-Exclude files using gitignore-style patterns:
+Exclude files using gitignore-style patterns.
+
+The pattern syntax is largely compatible with `.gitignore`, but `.hashignore`
+is not a full reimplementation of Git's ignore behavior.
+
+- QuicHash only reads `.hashignore`, not `.gitignore`, `.git/info/exclude`, or
+  Git's global excludes.
+- `scan` and `dedup` use `.hashignore`. `verify` currently does not.
+
+For directory-scanning commands such as `scan` and `dedup`, QuicHash looks for
+`.hashignore` in the directory you pass with `-d/--directory` and then in that
+directory's parent directories. It does not use the current working directory
+unless that is the scanned directory, it does not use the directory containing
+the `hash` binary, and it does not look for additional `.hashignore` files in
+subdirectories while walking the tree.
+
+Example: if you scan `/path/to/dir`, QuicHash reads `/path/to/dir/.hashignore`
+if present, then continues checking `/path/to/.hashignore`, `/path/.hashignore`,
+and so on up the directory tree.
 
 ```bash
 cat > /path/to/dir/.hashignore << 'EOF'
@@ -405,7 +423,7 @@ hash verify -b "*.db" -d "data/*"            # All .db files against all data di
 | Permission errors | Use `sudo hash scan -d /protected/dir ...` |
 | Slow performance | Use `-p` for parallel, `-f` for fast mode, or BLAKE3 |
 | Fast mode not working | Fast mode only works with files (not stdin/text) |
-| .hashignore not working | Check file location: `/path/to/dir/.hashignore` |
+| .hashignore not working | `scan` and `dedup` use `.hashignore`; put it in the scanned directory or one of its parent directories. Subdirectories are not searched for extra ignore files |
 | Wildcard pattern not matching | Ensure pattern is quoted (e.g., `"*.txt"` not `*.txt`) |
 | No files match pattern | Check pattern syntax and file locations |
 
@@ -413,35 +431,18 @@ hash verify -b "*.db" -d "data/*"            # All .db files against all data di
 
 We welcome contributions to QuicHash! To contribute, you must certify that you have the right to submit your contribution and agree to license it under the project's dual MIT/Apache-2.0 license.
 
-### Developer Certificate of Origin (DCO)
-
-QuicHash uses the [Developer Certificate of Origin (DCO)](https://developercertificate.org/) process. This is a lightweight way for contributors to certify that they wrote or otherwise have the right to submit code or documentation to an open source project.
-
 #### Inbound = Outbound License
 
-All contributions to QuicHash are made under the same dual MIT/Apache-2.0 license as the project itself. By signing off on your commits, you agree that your contributions will be licensed under these same terms, with no additional restrictions.
-
-#### How to Sign Off Commits
-
-Contributors sign-off that they adhere to these requirements by adding a Signed-off-by line to commit messages.
-
-```
-This is my commit message
-
-Signed-off-by: Random J Developer <random@developer.example.org>
-```
-
-Git even has a `-s` command line option to append this automatically to your commit message:
-
-```bash
-$ git commit -s -m 'This is my commit message'
-```
+All contributions to QuicHash are made under the same dual MIT/Apache-2.0 license as the project itself.
 
 ## License
 
-QuicHash is dual-licensed under either:
+QuicHash is licensed under either:
 
-- **MIT License** ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
-- **Apache License, Version 2.0** ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- **MIT License** ([LICENSE-MIT](LICENSE-MIT))
+
+or
+
+- **Apache License, Version 2.0** ([LICENSE-APACHE](LICENSE-APACHE))
 
 at your option.

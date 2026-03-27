@@ -596,7 +596,7 @@ impl ScanEngine {
         // Load .hashignore patterns if enabled
         let ignore_handler = if use_ignore {
             match IgnoreHandler::new(root) {
-                Ok(handler) => Some(handler),
+                Ok(handler) => Some(Arc::new(handler)),
                 Err(e) => {
                     eprintln!("Warning: Failed to load .hashignore: {}", e);
                     None
@@ -613,12 +613,36 @@ impl ScanEngine {
         // Use RayonNewPool to parallelize directory walking in a separate thread pool
         // This avoids conflicts with the main rayon pool used for hashing
         // Configure to follow links and not skip hidden files
-        for entry_result in WalkDir::new(root)
+        let mut walker = WalkDir::new(root)
             .parallelism(jwalk::Parallelism::RayonNewPool(0)) // 0 = use default thread count
             .skip_hidden(false) // Don't skip hidden files
-            .follow_links(false)
-        // Don't follow symlinks to avoid loops
-        {
+            .follow_links(false); // Don't follow symlinks to avoid loops
+
+        if let Some(handler) = ignore_handler.clone() {
+            let root = root.to_path_buf();
+            walker = walker.process_read_dir(move |_depth, _dir_path, _state, children| {
+                // Prune ignored directories before descending so patterns like `A/`
+                // exclude their contents, not just the directory entry itself.
+                for child_result in children.iter_mut() {
+                    let Ok(child) = child_result else {
+                        continue;
+                    };
+
+                    if !child.file_type.is_dir() {
+                        continue;
+                    }
+
+                    let child_path = child.path();
+                    if let Ok(rel_path) = child_path.strip_prefix(&root) {
+                        if handler.should_ignore(rel_path, true) {
+                            child.read_children_path = None;
+                        }
+                    }
+                }
+            });
+        }
+
+        for entry_result in walker {
             match entry_result {
                 Ok(entry) => {
                     let path = entry.path();
@@ -1107,5 +1131,43 @@ mod tests {
         fs::remove_dir_all(test_dir_par).unwrap();
         fs::remove_file(output_seq).unwrap();
         fs::remove_file(output_par).unwrap();
+    }
+
+    #[test]
+    fn test_walk_directory_streaming_skips_ignored_directory_patterns() {
+        let test_dir = "test_scan_ignore_directory_pattern";
+        fs::create_dir_all(format!("{}/A/sub", test_dir)).unwrap();
+        fs::create_dir_all(format!("{}/B", test_dir)).unwrap();
+
+        fs::write(format!("{}/.hashignore", test_dir), b"A/\n").unwrap();
+        fs::write(format!("{}/A/file1.txt", test_dir), b"one").unwrap();
+        fs::write(format!("{}/A/sub/file2.txt", test_dir), b"two").unwrap();
+        fs::write(format!("{}/B/file3.txt", test_dir), b"three").unwrap();
+
+        let (sender, receiver) = bounded::<PathBuf>(16);
+        let total_files_discovered = Arc::new(Mutex::new(0usize));
+
+        ScanEngine::walk_directory_streaming(
+            Path::new(test_dir),
+            sender,
+            true,
+            None,
+            Arc::clone(&total_files_discovered),
+        )
+        .unwrap();
+
+        let files: Vec<PathBuf> = receiver.iter().collect();
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(*total_files_discovered.lock().unwrap(), 1);
+        assert!(files.iter().any(|path| path.ends_with(Path::new("B").join("file3.txt"))));
+        assert!(!files
+            .iter()
+            .any(|path| path.ends_with(Path::new("A").join("file1.txt"))));
+        assert!(!files.iter().any(|path| {
+            path.ends_with(Path::new("A").join("sub").join("file2.txt"))
+        }));
+
+        fs::remove_dir_all(test_dir).unwrap();
     }
 }
