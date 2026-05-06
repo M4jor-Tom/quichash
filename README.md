@@ -33,6 +33,18 @@ Or build from source:
 cargo build --release
 ```
 
+### Nix (Flake)
+
+```bash
+# Run directly (builds and runs the `hash` binary)
+nix run . -- myfile.txt
+nix run . -- scan -d ./my_dir -b hashes.db
+nix run . -- verify -b hashes.db -d ./my_dir
+
+# Development shell (provides rustc + cargo)
+nix develop
+```
+
 ## Quick Start
 
 ```bash
