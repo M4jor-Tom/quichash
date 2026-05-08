@@ -693,7 +693,7 @@ impl DedupEngine {
             .collect();
 
         // Sort by wasted space (largest first)
-        duplicates.sort_by(|a, b| b.wasted_space.cmp(&a.wasted_space));
+        duplicates.sort_by_key(|b| std::cmp::Reverse(b.wasted_space));
 
         duplicates
     }
