@@ -182,4 +182,57 @@ mod tests {
 
         assert_eq!(result, vec![file]);
     }
+
+    #[test]
+    fn test_contains_wildcard_no_wildcards() {
+        assert!(!contains_wildcard("plain.txt"));
+        assert!(!contains_wildcard("path/to/file.txt"));
+        assert!(!contains_wildcard(""));
+    }
+
+    #[test]
+    fn test_contains_wildcard_all_types() {
+        assert!(contains_wildcard("*"));
+        assert!(contains_wildcard("?"));
+        assert!(contains_wildcard("["));
+        assert!(contains_wildcard("*.txt"));
+        assert!(contains_wildcard("file?"));
+        assert!(contains_wildcard("[abc]"));
+    }
+
+    #[test]
+    fn test_expand_pattern_with_literal_brackets_no_file() {
+        let result = expand_pattern("/nonexistent/path/file[1].txt");
+        // When the file doesn't exist but pattern contains brackets,
+        // glob treats [1] as a character class. No matches means error.
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_expand_pattern_with_dot_in_path() {
+        let temp_dir = tempdir().unwrap();
+        let file = temp_dir.path().join("file.with.dots.txt");
+        fs::write(&file, b"test").unwrap();
+
+        let pattern = temp_dir.path().join("file.with.dots.txt").to_string_lossy().to_string();
+        let result = expand_pattern(&pattern).unwrap();
+        assert_eq!(result, vec![file]);
+    }
+
+    #[test]
+    fn test_expand_pattern_invalid_glob() {
+        // An unterminated bracket should give an error
+        let result = expand_pattern("[invalid");
+        assert!(result.is_err());
+        if let Err(HashUtilityError::InvalidArguments { message }) = result {
+            assert!(message.contains("Invalid glob pattern") || message.contains("No files match pattern"));
+        }
+    }
+
+    #[test]
+    fn test_expand_pattern_empty_string() {
+        // Empty string has no wildcards, returns the empty path as-is
+        let result = expand_pattern("").unwrap();
+        assert_eq!(result, vec![PathBuf::from("")]);
+    }
 }

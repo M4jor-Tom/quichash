@@ -905,4 +905,166 @@ mod tests {
 
         fs::remove_file(temp_file).unwrap();
     }
+
+    #[test]
+    fn test_hashdeep_round_trip() {
+        let temp_file = "test_hashdeep_roundtrip.txt";
+
+        // Write hashdeep header and entries
+        let algorithms = vec!["sha256".to_string()];
+        let mut buffer = Vec::new();
+        DatabaseHandler::write_hashdeep_header(&mut buffer, &algorithms).unwrap();
+        DatabaseHandler::write_hashdeep_entry(&mut buffer, 100, &["hash_a".to_string()], Path::new("file1.txt")).unwrap();
+        DatabaseHandler::write_hashdeep_entry(&mut buffer, 200, &["hash_b".to_string()], Path::new("subdir/file2.txt")).unwrap();
+
+        // Write to file
+        fs::write(temp_file, &buffer).unwrap();
+
+        // Read back
+        let database = DatabaseHandler::read_database(Path::new(temp_file)).unwrap();
+
+        assert_eq!(database.len(), 2);
+
+        let entry1 = database.get(&PathBuf::from("file1.txt")).unwrap();
+        assert_eq!(entry1.hash, "hash_a");
+        assert_eq!(entry1.algorithm, "sha256");
+
+        let entry2 = database.get(&PathBuf::from("subdir/file2.txt")).unwrap();
+        assert_eq!(entry2.hash, "hash_b");
+        assert_eq!(entry2.algorithm, "sha256");
+
+        fs::remove_file(temp_file).unwrap();
+    }
+
+    #[test]
+    fn test_hashdeep_multiple_algorithms_round_trip() {
+        let temp_file = "test_hashdeep_multi_algo.txt";
+
+        // Two algorithms: sha256 + md5
+        let algorithms = vec!["sha256".to_string(), "md5".to_string()];
+        let mut buffer = Vec::new();
+        DatabaseHandler::write_hashdeep_header(&mut buffer, &algorithms).unwrap();
+        DatabaseHandler::write_hashdeep_entry(
+            &mut buffer,
+            100,
+            &["sha256_hash_a".to_string(), "md5_hash_a".to_string()],
+            Path::new("file1.txt"),
+        ).unwrap();
+
+        fs::write(temp_file, &buffer).unwrap();
+
+        // Read back — DatabaseHandler only stores the first hash (sha256)
+        let database = DatabaseHandler::read_database(Path::new(temp_file)).unwrap();
+
+        assert_eq!(database.len(), 1);
+        let entry = database.get(&PathBuf::from("file1.txt")).unwrap();
+        assert_eq!(entry.hash, "sha256_hash_a");
+        assert_eq!(entry.algorithm, "sha256");
+
+        fs::remove_file(temp_file).unwrap();
+    }
+
+    #[test]
+    fn test_is_hashdeep_hash_field_valid() {
+        assert!(DatabaseHandler::is_hashdeep_hash_field("d41d8cd98f00b204e9800998ecf8427e")); // md5 (32)
+        assert!(DatabaseHandler::is_hashdeep_hash_field("a9993e364706816aba3e25717850c26c9cd0d89d")); // sha1 (40)
+        assert!(DatabaseHandler::is_hashdeep_hash_field("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")); // sha256 (64)
+        assert!(DatabaseHandler::is_hashdeep_hash_field("cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e")); // sha512 (128)
+    }
+
+    #[test]
+    fn test_is_hashdeep_hash_field_invalid() {
+        assert!(!DatabaseHandler::is_hashdeep_hash_field("not-a-hex-string"));
+        assert!(!DatabaseHandler::is_hashdeep_hash_field(""));
+        assert!(!DatabaseHandler::is_hashdeep_hash_field("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")); // invalid hex
+        assert!(!DatabaseHandler::is_hashdeep_hash_field("abc")); // too short
+        assert!(!DatabaseHandler::is_hashdeep_hash_field("abc123")); // wrong length (not 16,32,40,56,64,96,128)
+    }
+
+    #[test]
+    fn test_infer_algorithm_from_hash() {
+        assert_eq!(DatabaseHandler::infer_algorithm_from_hash("d41d8cd98f00b204e9800998ecf8427e"), "md5");
+        assert_eq!(DatabaseHandler::infer_algorithm_from_hash("a9993e364706816aba3e25717850c26c9cd0d89d"), "sha1");
+        assert_eq!(DatabaseHandler::infer_algorithm_from_hash("d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"), "sha224");
+        assert_eq!(DatabaseHandler::infer_algorithm_from_hash("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"), "sha256");
+        assert_eq!(DatabaseHandler::infer_algorithm_from_hash("38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"), "sha384");
+        assert_eq!(DatabaseHandler::infer_algorithm_from_hash("cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"), "sha512");
+        assert_eq!(DatabaseHandler::infer_algorithm_from_hash("unknown_length_hash_here"), "unknown");
+    }
+
+    #[test]
+    fn test_compress_and_read_database() {
+        let temp_plain = "test_compress_plain.txt";
+        let content = "hash1  sha256  normal  file1.txt\n\
+                       hash2  sha256  normal  file2.txt\n";
+        fs::write(temp_plain, content).unwrap();
+
+        // Compress
+        let compressed = DatabaseHandler::compress_database(Path::new(temp_plain)).unwrap();
+        assert!(compressed.extension().unwrap() == "xz");
+
+        // Read compressed database
+        let database = DatabaseHandler::read_database(&compressed).unwrap();
+        assert_eq!(database.len(), 2);
+        assert!(database.contains_key(&PathBuf::from("file1.txt")));
+        assert!(database.contains_key(&PathBuf::from("file2.txt")));
+
+        // Cleanup
+        fs::remove_file(temp_plain).unwrap();
+        fs::remove_file(&compressed).unwrap();
+    }
+
+    #[test]
+    fn test_compress_database_creates_smaller_file() {
+        let temp_plain = "test_compress_size_plain.txt";
+        let mut content = String::new();
+        for i in 0..100 {
+            content.push_str(&format!("hash{:040}  sha256  normal  file{}.txt\n", i, i));
+        }
+        fs::write(temp_plain, &content).unwrap();
+
+        let plain_len = fs::metadata(temp_plain).unwrap().len();
+        let compressed = DatabaseHandler::compress_database(Path::new(temp_plain)).unwrap();
+        let compressed_len = fs::metadata(&compressed).unwrap().len();
+
+        // Compression should reduce size for repetitive data
+        assert!(compressed_len < plain_len, "compressed {} should be smaller than plain {}", compressed_len, plain_len);
+
+        fs::remove_file(temp_plain).unwrap();
+        fs::remove_file(&compressed).unwrap();
+    }
+
+    #[test]
+    fn test_is_compressed() {
+        assert!(DatabaseHandler::is_compressed(Path::new("hashes.txt.xz")));
+        assert!(!DatabaseHandler::is_compressed(Path::new("hashes.txt")));
+        assert!(!DatabaseHandler::is_compressed(Path::new("hashes.xz.txt")));
+        assert!(!DatabaseHandler::is_compressed(Path::new("")));
+    }
+
+    #[test]
+    fn test_detect_format_empty_file() {
+        let temp_file = "test_detect_empty.txt";
+        fs::write(temp_file, "").unwrap();
+
+        // Empty file should default to Standard format
+        let format = DatabaseHandler::detect_format(Path::new(temp_file)).unwrap();
+        assert_eq!(format, DatabaseFormat::Standard);
+
+        fs::remove_file(temp_file).unwrap();
+    }
+
+    #[test]
+    fn test_detect_format_hidden_database() {
+        let temp_file = "test_detect_hidden.txt";
+        let content = "%%%% HASHDEEP-1.0\n\
+                       %%%% size,sha256,filename\n\
+                       ## hidden database\n";
+        fs::write(temp_file, content).unwrap();
+
+        let format = DatabaseHandler::detect_format(Path::new(temp_file)).unwrap();
+        assert_eq!(format, DatabaseFormat::Hashdeep);
+
+        fs::remove_file(temp_file).unwrap();
+    }
 }

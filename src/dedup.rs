@@ -705,6 +705,165 @@ impl Default for DedupEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+
+    fn create_test_dir(name: &str) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        dir
+    }
+
+    #[test]
+    fn test_find_duplicate_groups_no_duplicates() {
+        let mut hash_map: HashMap<String, Vec<(PathBuf, u64)>> = HashMap::new();
+        hash_map.insert("hash1".to_string(), vec![(PathBuf::from("file1.txt"), 100)]);
+        hash_map.insert("hash2".to_string(), vec![(PathBuf::from("file2.txt"), 200)]);
+
+        let engine = DedupEngine::new();
+        let groups = engine.find_duplicate_groups(&hash_map);
+
+        assert_eq!(groups.len(), 0);
+    }
+
+    #[test]
+    fn test_find_duplicate_groups_with_duplicates() {
+        let mut hash_map: HashMap<String, Vec<(PathBuf, u64)>> = HashMap::new();
+        hash_map.insert(
+            "dup_hash".to_string(),
+            vec![
+                (PathBuf::from("file1.txt"), 100),
+                (PathBuf::from("file2.txt"), 100),
+            ],
+        );
+        hash_map.insert(
+            "unique".to_string(),
+            vec![(PathBuf::from("file3.txt"), 200)],
+        );
+
+        let engine = DedupEngine::new();
+        let groups = engine.find_duplicate_groups(&hash_map);
+
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].hash, "dup_hash");
+        assert_eq!(groups[0].count, 2);
+        assert_eq!(groups[0].file_size, 100);
+        assert_eq!(groups[0].wasted_space, 100);
+    }
+
+    #[test]
+    fn test_find_duplicate_groups_multiple_groups() {
+        let mut hash_map: HashMap<String, Vec<(PathBuf, u64)>> = HashMap::new();
+        hash_map.insert(
+            "hash_a".to_string(),
+            vec![
+                (PathBuf::from("a1.txt"), 50),
+                (PathBuf::from("a2.txt"), 50),
+                (PathBuf::from("a3.txt"), 50),
+            ],
+        );
+        hash_map.insert(
+            "hash_b".to_string(),
+            vec![
+                (PathBuf::from("b1.txt"), 200),
+                (PathBuf::from("b2.txt"), 200),
+            ],
+        );
+
+        let engine = DedupEngine::new();
+        let groups = engine.find_duplicate_groups(&hash_map);
+
+        assert_eq!(groups.len(), 2);
+
+        // Sorted by wasted space descending: hash_b (200*1=200) > hash_a (50*2=100)
+        assert_eq!(groups[0].hash, "hash_b");
+        assert_eq!(groups[0].wasted_space, 200);
+        assert_eq!(groups[1].hash, "hash_a");
+        assert_eq!(groups[1].wasted_space, 100);
+    }
+
+    #[test]
+    fn test_dedup_report_to_json_structure() {
+        let report = DedupReport {
+            stats: DedupStats {
+                files_scanned: 10,
+                files_failed: 0,
+                total_bytes: 5000,
+                duplicate_groups: 2,
+                duplicate_files: 5,
+                wasted_space: 3000,
+                duration: Duration::from_secs(1),
+            },
+            duplicate_groups: vec![
+                DuplicateGroupWithSize {
+                    hash: "abcdef".to_string(),
+                    paths: vec![PathBuf::from("a.txt"), PathBuf::from("b.txt")],
+                    count: 2,
+                    file_size: 100,
+                    wasted_space: 100,
+                },
+            ],
+        };
+
+        let json_str = report.to_json().unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+
+        assert_eq!(parsed["stats"]["files_scanned"], 10);
+        assert_eq!(parsed["stats"]["duplicate_groups"], 2);
+        assert_eq!(parsed["stats"]["wasted_space"], 3000);
+        assert_eq!(parsed["stats"]["duration"], 1.0);
+        assert_eq!(parsed["duplicate_groups"][0]["hash"], "abcdef");
+        assert_eq!(parsed["duplicate_groups"][0]["count"], 2);
+        assert_eq!(parsed["duplicate_groups"][0]["file_size"], 100);
+        assert!(parsed["metadata"]["timestamp"].is_string());
+    }
+
+    #[test]
+    fn test_dedup_engine_builder_methods() {
+        let engine = DedupEngine::new()
+            .with_fast_mode(true)
+            .with_parallel(false)
+            .with_quiet(true);
+
+        // Test that the engine can be created with these settings
+        // We verify by running on an empty directory
+        let dir = create_test_dir("test_dedup_builder");
+        let report = engine.find_duplicates(dir.path()).unwrap();
+
+        assert_eq!(report.stats.files_scanned, 0);
+        assert_eq!(report.stats.files_failed, 0);
+    }
+
+    #[test]
+    fn test_dedup_empty_directory() {
+        let dir = create_test_dir("test_dedup_empty");
+        let engine = DedupEngine::new();
+        let report = engine.find_duplicates(dir.path()).unwrap();
+
+        assert_eq!(report.stats.files_scanned, 0);
+        assert_eq!(report.stats.duplicate_groups, 0);
+        assert_eq!(report.duplicate_groups.len(), 0);
+    }
+
+    #[test]
+    fn test_dedup_report_no_duplicates_to_json() {
+        let report = DedupReport {
+            stats: DedupStats {
+                files_scanned: 5,
+                files_failed: 0,
+                total_bytes: 1000,
+                duplicate_groups: 0,
+                duplicate_files: 0,
+                wasted_space: 0,
+                duration: Duration::from_secs_f64(0.5),
+            },
+            duplicate_groups: vec![],
+        };
+
+        let json_str = report.to_json().unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+
+        assert_eq!(parsed["stats"]["duplicate_groups"], 0);
+        assert!(parsed["duplicate_groups"].as_array().unwrap().is_empty());
+    }
 
     #[test]
     fn test_walk_directory_streaming_skips_ignored_directory_patterns() {
