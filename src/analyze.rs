@@ -234,10 +234,16 @@ impl AnalyzeReport {
 /// Engine for analyzing hash databases
 pub struct AnalyzeEngine;
 
+impl Default for AnalyzeEngine {
+    fn default() -> Self {
+        Self
+    }
+}
+
 impl AnalyzeEngine {
     /// Create a new AnalyzeEngine
     pub fn new() -> Self {
-        AnalyzeEngine
+        Self
     }
 
     /// Analyze a database file and generate a report

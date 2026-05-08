@@ -447,10 +447,16 @@ impl CompareReport {
 /// Engine for comparing two hash databases
 pub struct CompareEngine;
 
+impl Default for CompareEngine {
+    fn default() -> Self {
+        Self
+    }
+}
+
 impl CompareEngine {
     /// Create a new CompareEngine
     pub fn new() -> Self {
-        CompareEngine
+        Self
     }
 
     /// Compare two hash databases and generate a detailed report

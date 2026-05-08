@@ -14,24 +14,27 @@ Release profile: fat LTO, strip, panic=abort, codegen-units=1.
 
 ## Architecture
 
-All source in `src/`, single binary entrypoint:
+All source in `src/`. The crate produces both a library (`quichash`) and a binary (`hash`):
 
-| File | Responsibility |
-|------|----------------|
-| `main.rs` | Entry point, stdin detection, command dispatch |
-| `cli.rs` | Clap derive commands: hash, scan, verify, compare, analyze, dedup, benchmark, list |
-| `hash.rs` | `Hasher` trait + algorithm registry — implement this to add algorithms |
-| `scan.rs` | Parallel directory scan (rayon + jwalk), progress bars |
-| `verify.rs` | Compare live dir against stored database |
-| `compare.rs` | Two-database diff (changed/moved/added/removed) |
-| `dedup.rs` | Duplicate detection by hash |
-| `database.rs` | Parse/write standard, hashdeep, JSON, LZMA-compressed (.xz) formats |
-| `error.rs` | Centralized error types with path/operation context |
-| `wildcard.rs` | `*`, `?`, `[...]` expansion |
-| `ignore_handler.rs` | `.hashignore` gitignore-style matching |
-| `path_utils.rs` | Path canonicalization cache |
+| File | Crate | Responsibility |
+|------|-------|----------------|
+| `lib.rs` | lib | Module declarations, re-exports public API |
+| `main.rs` | bin | ~40-line entry point, stdin detection, output dispatch |
+| `cli.rs` | lib | Clap derive commands: hash, scan, verify, compare, analyze, dedup, benchmark, list |
+| `commands.rs` | lib | Orchestration layer — calls engines, formats output as `String` |
+| `hash.rs` | lib | `Hasher` trait + algorithm registry — implement this to add algorithms |
+| `scan.rs` | lib | Parallel directory scan (rayon + jwalk), progress bars |
+| `verify.rs` | lib | Compare live dir against stored database |
+| `compare.rs` | lib | Two-database diff (changed/moved/added/removed) |
+| `dedup.rs` | lib | Duplicate detection by hash |
+| `database.rs` | lib | Parse/write standard, hashdeep, JSON, LZMA-compressed (.xz) formats |
+| `error.rs` | lib | Centralized error types with path/operation context |
+| `wildcard.rs` | lib | `*`, `?`, `[...]` expansion |
+| `ignore_handler.rs` | lib | `.hashignore` gitignore-style matching |
+| `path_utils.rs` | lib | Path canonicalization cache |
 
 Engines (`ScanEngine`, `VerifyEngine`) use builder-style configuration.
+Use `quichash::commands` for binary-style orchestration or use individual engines directly for library consumption.
 
 ## Testing
 
@@ -46,6 +49,7 @@ Engines (`ScanEngine`, `VerifyEngine`) use builder-style configuration.
 ## Key Conventions
 
 - **Binary is `hash`**, not `quichash` — configured in `Cargo.toml` `[[bin]]` block
+- **Library is `quichash`** — configured in `Cargo.toml` `[lib]` block
 - **Default algorithm: BLAKE3**, default mode: parallel (rayon)
 - **`--hdd` flag** switches to sequential processing (old mechanical drives)
 - **`-f` (fast mode)** samples 300MB — only works on files, not stdin/text

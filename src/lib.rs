@@ -1,0 +1,14 @@
+pub mod analyze;
+pub mod benchmark;
+pub mod cli;
+pub mod commands;
+pub mod compare;
+pub mod database;
+pub mod dedup;
+pub mod error;
+pub mod hash;
+pub mod ignore_handler;
+pub mod path_utils;
+pub mod scan;
+pub mod verify;
+pub mod wildcard;

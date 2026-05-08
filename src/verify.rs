@@ -33,79 +33,75 @@ pub struct VerifyReport {
 }
 
 impl VerifyReport {
-    /// Display a detailed report of verification results
-    pub fn display(&self) {
-        // Determine overall status
+    /// Format the verification report as a display string
+    pub fn format_display(&self) -> String {
+        use std::fmt::Write;
+        let mut output = String::new();
+
         let has_issues = !self.mismatches.is_empty()
             || !self.missing_files.is_empty()
             || !self.new_files.is_empty();
 
-        // Display clear status banner
-        println!("\n================================================================");
+        writeln!(output, "\n================================================================").unwrap();
         if has_issues {
-            println!("                  FILE CHANGES DETECTED                         ");
+            writeln!(output, "                  FILE CHANGES DETECTED                         ").unwrap();
         } else {
-            println!("                       ALL GOOD                                 ");
+            writeln!(output, "                       ALL GOOD                                 ").unwrap();
         }
-        println!("================================================================\n");
+        writeln!(output, "================================================================\n").unwrap();
 
-        // Display summary counts
-        println!("Verification Summary:");
-        println!("  Matches:        {}", self.matches);
-        println!("  Mismatches:     {}", self.mismatches.len());
-        println!("  Missing files:  {}", self.missing_files.len());
-        println!("  New files:      {}", self.new_files.len());
+        writeln!(output, "Verification Summary:").unwrap();
+        writeln!(output, "  Matches:        {}", self.matches).unwrap();
+        writeln!(output, "  Mismatches:     {}", self.mismatches.len()).unwrap();
+        writeln!(output, "  Missing files:  {}", self.missing_files.len()).unwrap();
+        writeln!(output, "  New files:      {}", self.new_files.len()).unwrap();
 
-        // If everything is good, show success message and return
         if !has_issues {
-            println!("\nAll files match the database. No changes detected.");
+            writeln!(output, "\nAll files match the database. No changes detected.").unwrap();
             let total_checked = self.matches + self.mismatches.len();
-            println!("Total files verified: {}", total_checked);
-            return;
+            writeln!(output, "Total files verified: {}", total_checked).unwrap();
+            return output;
         }
 
-        // Show detailed information about issues
         if !self.mismatches.is_empty() {
-            println!(
-                "\n--- Files with Changed Hashes ({}) ---",
-                self.mismatches.len()
-            );
+            writeln!(output, "\n--- Files with Changed Hashes ({}) ---", self.mismatches.len()).unwrap();
             for mismatch in &self.mismatches {
-                println!();
-                println!("  File: {}", mismatch.path.display());
-                println!("    Expected: {}", mismatch.expected);
-                println!("    Actual:   {}", mismatch.actual);
+                writeln!(output).unwrap();
+                writeln!(output, "  File: {}", mismatch.path.display()).unwrap();
+                writeln!(output, "    Expected: {}", mismatch.expected).unwrap();
+                writeln!(output, "    Actual:   {}", mismatch.actual).unwrap();
             }
-            println!("----------------------------------------------------------------");
+            writeln!(output, "----------------------------------------------------------------").unwrap();
         }
 
         if !self.missing_files.is_empty() {
-            println!("\n--- Deleted Files ({}) ---", self.missing_files.len());
-            println!("(in database but not in filesystem)");
+            writeln!(output, "\n--- Deleted Files ({}) ---", self.missing_files.len()).unwrap();
+            writeln!(output, "(in database but not in filesystem)").unwrap();
             for path in &self.missing_files {
-                println!("  - {}", path.display());
+                writeln!(output, "  - {}", path.display()).unwrap();
             }
-            println!("----------------------------------------------------------------");
+            writeln!(output, "----------------------------------------------------------------").unwrap();
         }
 
         if !self.new_files.is_empty() {
-            println!("\n--- New Files ({}) ---", self.new_files.len());
-            println!("(in filesystem but not in database)");
+            writeln!(output, "\n--- New Files ({}) ---", self.new_files.len()).unwrap();
+            writeln!(output, "(in filesystem but not in database)").unwrap();
             for path in &self.new_files {
-                println!("  + {}", path.display());
+                writeln!(output, "  + {}", path.display()).unwrap();
             }
-            println!("----------------------------------------------------------------");
+            writeln!(output, "----------------------------------------------------------------").unwrap();
         }
 
-        // Final summary
-        println!("\n================================================================");
+        writeln!(output, "\n================================================================").unwrap();
         let total_checked = self.matches + self.mismatches.len();
         let total_in_db = total_checked + self.missing_files.len();
         let total_in_fs = total_checked + self.new_files.len();
-        println!("Total files checked:      {}", total_checked);
-        println!("Total files in database:  {}", total_in_db);
-        println!("Total files in filesystem: {}", total_in_fs);
-        println!("================================================================");
+        writeln!(output, "Total files checked:      {}", total_checked).unwrap();
+        writeln!(output, "Total files in database:  {}", total_in_db).unwrap();
+        writeln!(output, "Total files in filesystem: {}", total_in_fs).unwrap();
+        writeln!(output, "================================================================").unwrap();
+
+        output
     }
 }
 

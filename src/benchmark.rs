@@ -84,27 +84,30 @@ impl BenchmarkEngine {
         })
     }
 
-    /// Display benchmark results in a formatted table
-    pub fn display_results(&self, results: &[BenchmarkResult]) {
+    /// Format benchmark results as a string table
+    pub fn format_results(&self, results: &[BenchmarkResult]) -> String {
+        use std::fmt::Write;
+
         if results.is_empty() {
-            println!("No benchmark results to display.");
-            return;
+            return "No benchmark results to display.".to_string();
         }
 
-        // Sort results by throughput (descending)
+        let mut output = String::new();
+
         let mut sorted_results = results.to_vec();
         sorted_results.sort_by(|a, b| b.throughput_mbps.partial_cmp(&a.throughput_mbps).unwrap());
 
-        // Print header
-        println!("\n{:<20} {:>15}", "Algorithm", "Throughput (MB/s)");
-        println!("{}", "-".repeat(37));
+        writeln!(output).unwrap();
+        writeln!(output, "{:<20} {:>15}", "Algorithm", "Throughput (MB/s)").unwrap();
+        writeln!(output, "{}", "-".repeat(37)).unwrap();
 
-        // Print results
         for result in sorted_results {
-            println!("{:<20} {:>15.2}", result.algorithm, result.throughput_mbps);
+            writeln!(output, "{:<20} {:>15.2}", result.algorithm, result.throughput_mbps).unwrap();
         }
 
-        println!();
+        writeln!(output).unwrap();
+
+        output
     }
 }
 
