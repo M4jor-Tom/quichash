@@ -264,9 +264,6 @@ pub fn parse_args() -> Result<Cli, HashUtilityError> {
     }
 }
 
-// Re-export HashUtilityError as CliError for backward compatibility
-pub type CliError = HashUtilityError;
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -280,8 +277,8 @@ mod tests {
         assert_eq!(cli.file, Some("test.txt".to_string()));
         assert_eq!(cli.algorithms, vec!["sha256"]);
         assert_eq!(cli.output, None);
-        assert_eq!(cli.fast, false);
-        assert_eq!(cli.json, false);
+        assert!(!cli.fast);
+        assert!(!cli.json);
     }
 
     #[test]
@@ -293,7 +290,7 @@ mod tests {
         assert_eq!(cli.file, Some("test.txt".to_string()));
         assert_eq!(cli.algorithms, vec!["sha256", "md5"]);
         assert_eq!(cli.output, None);
-        assert_eq!(cli.fast, false);
+        assert!(!cli.fast);
     }
 
     #[test]
@@ -305,7 +302,7 @@ mod tests {
         assert_eq!(cli.file, Some("test.txt".to_string()));
         assert_eq!(cli.algorithms, vec!["sha256"]);
         assert_eq!(cli.output, Some(PathBuf::from("output.txt")));
-        assert_eq!(cli.fast, false);
+        assert!(!cli.fast);
     }
 
     #[test]
@@ -316,7 +313,7 @@ mod tests {
         assert_eq!(cli.command, None);
         assert_eq!(cli.file, Some("test.txt".to_string()));
         assert_eq!(cli.algorithms, vec!["sha256"]);
-        assert_eq!(cli.fast, false);
+        assert!(!cli.fast);
     }
 
     #[test]
@@ -328,7 +325,7 @@ mod tests {
         assert_eq!(cli.file, Some("test.txt".to_string()));
         assert_eq!(cli.algorithms, vec!["sha256"]);
         assert_eq!(cli.output, None);
-        assert_eq!(cli.fast, true);
+        assert!(cli.fast);
     }
 
     #[test]
@@ -340,7 +337,7 @@ mod tests {
         assert_eq!(cli.file, Some("test.txt".to_string()));
         assert_eq!(cli.algorithms, vec!["blake3"]); // default
         assert_eq!(cli.output, None);
-        assert_eq!(cli.fast, true);
+        assert!(cli.fast);
     }
 
     #[test]
@@ -352,7 +349,7 @@ mod tests {
         assert_eq!(cli.file, Some("test.txt".to_string()));
         assert_eq!(cli.algorithms, vec!["sha256", "md5"]);
         assert_eq!(cli.output, None);
-        assert_eq!(cli.fast, true);
+        assert!(cli.fast);
     }
 
     #[test]
@@ -383,11 +380,11 @@ mod tests {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
-                assert_eq!(hdd, false);
-                assert_eq!(fast, false);
+                assert!(!hdd);
+                assert!(!fast);
                 assert_eq!(format, "standard");
-                assert_eq!(json, false);
-                assert_eq!(compress, false);
+                assert!(!json);
+                assert!(!compress);
             }
             _ => panic!("Expected Scan command"),
         }
@@ -422,11 +419,11 @@ mod tests {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
-                assert_eq!(hdd, true);
-                assert_eq!(fast, false);
+                assert!(hdd);
+                assert!(!fast);
                 assert_eq!(format, "standard");
-                assert_eq!(json, false);
-                assert_eq!(compress, false);
+                assert!(!json);
+                assert!(!compress);
             }
             _ => panic!("Expected Scan command"),
         }
@@ -461,11 +458,11 @@ mod tests {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
-                assert_eq!(hdd, true);
-                assert_eq!(fast, false);
+                assert!(hdd);
+                assert!(!fast);
                 assert_eq!(format, "standard");
-                assert_eq!(json, false);
-                assert_eq!(compress, false);
+                assert!(!json);
+                assert!(!compress);
             }
             _ => panic!("Expected Scan command"),
         }
@@ -485,8 +482,8 @@ mod tests {
             }) => {
                 assert_eq!(database, "hashes.txt");
                 assert_eq!(directory, "/path/to/dir");
-                assert_eq!(hdd, false); // parallel by default
-                assert_eq!(json, false);
+                assert!(!hdd); // parallel by default
+                assert!(!json);
             }
             _ => panic!("Expected Verify command"),
         }
@@ -513,8 +510,8 @@ mod tests {
             }) => {
                 assert_eq!(database, "hashes.txt");
                 assert_eq!(directory, "/path/to/dir");
-                assert_eq!(hdd, false); // parallel by default
-                assert_eq!(json, false);
+                assert!(!hdd); // parallel by default
+                assert!(!json);
             }
             _ => panic!("Expected Verify command"),
         }
@@ -542,8 +539,8 @@ mod tests {
             }) => {
                 assert_eq!(database, "hashes.txt");
                 assert_eq!(directory, "/path/to/dir");
-                assert_eq!(hdd, true); // sequential mode
-                assert_eq!(json, false);
+                assert!(hdd); // sequential mode
+                assert!(!json);
             }
             _ => panic!("Expected Verify command"),
         }
@@ -557,7 +554,7 @@ mod tests {
         match cli.command {
             Some(Command::Benchmark { size_mb, json }) => {
                 assert_eq!(size_mb, 100); // default value
-                assert_eq!(json, false);
+                assert!(!json);
             }
             _ => panic!("Expected Benchmark command"),
         }
@@ -571,7 +568,7 @@ mod tests {
         match cli.command {
             Some(Command::Benchmark { size_mb, json }) => {
                 assert_eq!(size_mb, 50);
-                assert_eq!(json, false);
+                assert!(!json);
             }
             _ => panic!("Expected Benchmark command"),
         }
@@ -585,7 +582,7 @@ mod tests {
         match cli.command {
             Some(Command::Benchmark { size_mb, json }) => {
                 assert_eq!(size_mb, 200);
-                assert_eq!(json, false);
+                assert!(!json);
             }
             _ => panic!("Expected Benchmark command"),
         }
@@ -598,7 +595,7 @@ mod tests {
 
         match cli.command {
             Some(Command::List { json }) => {
-                assert_eq!(json, false);
+                assert!(!json);
             }
             _ => panic!("Expected List command"),
         }
@@ -633,7 +630,7 @@ mod tests {
         assert_eq!(cli.file, None);
         assert_eq!(cli.algorithms, vec!["blake3"]); // default algorithm
         assert_eq!(cli.output, None);
-        assert_eq!(cli.fast, false);
+        assert!(!cli.fast);
     }
 
     #[test]
@@ -661,7 +658,7 @@ mod tests {
 
         assert_eq!(cli.command, None);
         assert_eq!(cli.algorithms, vec!["blake3"]); // default algorithm
-        assert_eq!(cli.fast, false); // default fast mode
+        assert!(!cli.fast); // default fast mode
     }
 
     #[test]
@@ -674,7 +671,7 @@ mod tests {
         assert_eq!(cli.file, None);
         assert_eq!(cli.algorithms, vec!["sha256"]);
         assert_eq!(cli.output, None);
-        assert_eq!(cli.fast, false);
+        assert!(!cli.fast);
     }
 
     #[test]
@@ -686,7 +683,7 @@ mod tests {
         assert_eq!(cli.file, None);
         assert_eq!(cli.algorithms, vec!["sha256", "md5"]);
         assert_eq!(cli.output, None);
-        assert_eq!(cli.fast, false);
+        assert!(!cli.fast);
     }
 
     #[test]
@@ -704,10 +701,10 @@ mod tests {
                 ..
             }) => {
                 assert_eq!(algorithm, "blake3"); // default algorithm
-                assert_eq!(fast, false); // default fast mode
+                assert!(!fast); // default fast mode
                 assert_eq!(format, "standard"); // default format
-                assert_eq!(json, false); // default json
-                assert_eq!(compress, false); // default compress
+                assert!(!json); // default json
+                assert!(!compress); // default compress
             }
             _ => panic!("Expected Scan command"),
         }
@@ -742,11 +739,11 @@ mod tests {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
-                assert_eq!(hdd, false);
-                assert_eq!(fast, true);
+                assert!(!hdd);
+                assert!(fast);
                 assert_eq!(format, "standard");
-                assert_eq!(json, false);
-                assert_eq!(compress, false);
+                assert!(!json);
+                assert!(!compress);
             }
             _ => panic!("Expected Scan command"),
         }
@@ -781,11 +778,11 @@ mod tests {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
-                assert_eq!(hdd, false);
-                assert_eq!(fast, true);
+                assert!(!hdd);
+                assert!(fast);
                 assert_eq!(format, "standard");
-                assert_eq!(json, false);
-                assert_eq!(compress, false);
+                assert!(!json);
+                assert!(!compress);
             }
             _ => panic!("Expected Scan command"),
         }
@@ -821,11 +818,11 @@ mod tests {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
-                assert_eq!(hdd, true);
-                assert_eq!(fast, true);
+                assert!(hdd);
+                assert!(fast);
                 assert_eq!(format, "standard");
-                assert_eq!(json, false);
-                assert_eq!(compress, false);
+                assert!(!json);
+                assert!(!compress);
             }
             _ => panic!("Expected Scan command"),
         }
@@ -841,7 +838,7 @@ mod tests {
         assert_eq!(cli.text, Some("hello world".to_string()));
         assert_eq!(cli.algorithms, vec!["sha256"]);
         assert_eq!(cli.output, None);
-        assert_eq!(cli.fast, false);
+        assert!(!cli.fast);
     }
 
     #[test]
@@ -854,7 +851,7 @@ mod tests {
         assert_eq!(cli.text, Some("test string".to_string()));
         assert_eq!(cli.algorithms, vec!["md5"]);
         assert_eq!(cli.output, None);
-        assert_eq!(cli.fast, false);
+        assert!(!cli.fast);
     }
 
     #[test]
@@ -867,7 +864,7 @@ mod tests {
         assert_eq!(cli.text, Some("hello".to_string()));
         assert_eq!(cli.algorithms, vec!["sha256", "md5"]);
         assert_eq!(cli.output, None);
-        assert_eq!(cli.fast, false);
+        assert!(!cli.fast);
     }
 
     #[test]
@@ -908,11 +905,11 @@ mod tests {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
-                assert_eq!(hdd, false);
-                assert_eq!(fast, false);
+                assert!(!hdd);
+                assert!(!fast);
                 assert_eq!(format, "standard");
-                assert_eq!(json, false);
-                assert_eq!(compress, true);
+                assert!(!json);
+                assert!(compress);
             }
             _ => panic!("Expected Scan command"),
         }
@@ -950,11 +947,11 @@ mod tests {
                 assert_eq!(directory, "/path/to/dir");
                 assert_eq!(algorithm, "sha256");
                 assert_eq!(database, PathBuf::from("hashes.txt"));
-                assert_eq!(hdd, true);
-                assert_eq!(fast, true);
+                assert!(hdd);
+                assert!(fast);
                 assert_eq!(format, "standard");
-                assert_eq!(json, true);
-                assert_eq!(compress, true);
+                assert!(json);
+                assert!(compress);
             }
             _ => panic!("Expected Scan command"),
         }
@@ -978,7 +975,7 @@ mod tests {
         assert_eq!(cli.text, Some("hello world".to_string()));
         assert_eq!(cli.algorithms, vec!["sha256"]);
         assert_eq!(cli.output, Some(PathBuf::from("output.txt")));
-        assert_eq!(cli.fast, false);
+        assert!(!cli.fast);
     }
 
     #[test]

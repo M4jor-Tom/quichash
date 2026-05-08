@@ -570,7 +570,7 @@ mod tests {
         let (hash, algorithm, fast_mode, path) = result.unwrap();
         assert_eq!(hash, "d41d8cd98f00b204e9800998ecf8427e");
         assert_eq!(algorithm, "md5");
-        assert_eq!(fast_mode, false);
+        assert!(!fast_mode);
         assert_eq!(path, PathBuf::from("./test/file.txt"));
     }
 
@@ -583,7 +583,7 @@ mod tests {
         let (hash, algorithm, fast_mode, path) = result.unwrap();
         assert_eq!(hash, "abc123");
         assert_eq!(algorithm, "sha256");
-        assert_eq!(fast_mode, true);
+        assert!(fast_mode);
         assert_eq!(path, PathBuf::from("./path with spaces/file.txt"));
     }
 
@@ -647,17 +647,17 @@ mod tests {
         let empty_entry = database.get(&PathBuf::from("./empty.txt")).unwrap();
         assert_eq!(empty_entry.hash, "d41d8cd98f00b204e9800998ecf8427e");
         assert_eq!(empty_entry.algorithm, "md5");
-        assert_eq!(empty_entry.fast_mode, false);
+        assert!(!empty_entry.fast_mode);
 
         let hello_entry = database.get(&PathBuf::from("./hello.txt")).unwrap();
         assert_eq!(hello_entry.hash, "5d41402abc4b2a76b9719d911017c592");
         assert_eq!(hello_entry.algorithm, "md5");
-        assert_eq!(hello_entry.fast_mode, false);
+        assert!(!hello_entry.fast_mode);
 
         let data_entry = database.get(&PathBuf::from("./test/data.bin")).unwrap();
         assert_eq!(data_entry.hash, "098f6bcd4621d373cade4e832627b4f6");
         assert_eq!(data_entry.algorithm, "md5");
-        assert_eq!(data_entry.fast_mode, true);
+        assert!(data_entry.fast_mode);
 
         // Cleanup
         fs::remove_file(temp_file).unwrap();
@@ -734,12 +734,12 @@ mod tests {
         let entry1 = database.get(&PathBuf::from("file1.txt")).unwrap();
         assert_eq!(entry1.hash, "hash1");
         assert_eq!(entry1.algorithm, "sha256");
-        assert_eq!(entry1.fast_mode, false);
+        assert!(!entry1.fast_mode);
 
         let entry2 = database.get(&PathBuf::from("file2.txt")).unwrap();
         assert_eq!(entry2.hash, "hash2");
         assert_eq!(entry2.algorithm, "sha256");
-        assert_eq!(entry2.fast_mode, true);
+        assert!(entry2.fast_mode);
 
         // Cleanup
         fs::remove_file(temp_file).unwrap();
@@ -754,7 +754,7 @@ mod tests {
         let (hash, algorithm, fast_mode, path) = result.unwrap();
         assert_eq!(hash, "abc123");
         assert_eq!(algorithm, "sha256");
-        assert_eq!(fast_mode, false);
+        assert!(!fast_mode);
         // Path should be parsed correctly regardless of platform
         assert!(path.to_str().unwrap().contains("file.txt"));
     }
@@ -768,7 +768,7 @@ mod tests {
         let (hash, algorithm, fast_mode, path) = result.unwrap();
         assert_eq!(hash, "abc123");
         assert_eq!(algorithm, "sha256");
-        assert_eq!(fast_mode, true);
+        assert!(fast_mode);
         // Path should be parsed correctly regardless of platform
         assert!(path.to_str().unwrap().contains("file.txt"));
     }
@@ -782,7 +782,7 @@ mod tests {
         let (hash, algorithm, fast_mode, path) = result.unwrap();
         assert_eq!(hash, "abc123");
         assert_eq!(algorithm, "sha256");
-        assert_eq!(fast_mode, false);
+        assert!(!fast_mode);
         // Path should be parsed correctly with normalized separators
         assert!(path.to_str().unwrap().contains("file.txt"));
     }
@@ -815,7 +815,7 @@ mod tests {
         let (hash, algorithm, fast_mode, path) = result.unwrap();
         assert_eq!(hash, "abc123");
         assert_eq!(algorithm, "sha256");
-        assert_eq!(fast_mode, false);
+        assert!(!fast_mode);
         // The filename should preserve the double spaces
         assert!(path.to_str().unwrap().contains("file  with  spaces.txt"));
     }

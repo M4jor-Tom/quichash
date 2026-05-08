@@ -8,6 +8,7 @@ use std::path::PathBuf;
 /// Main error type for the hash utility
 /// Provides context-rich error messages with file paths and operations
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum HashUtilityError {
     /// File system errors with context
     FileNotFound {
@@ -78,23 +79,23 @@ impl fmt::Display for HashUtilityError {
         match self {
             // File system errors
             HashUtilityError::FileNotFound { path } => {
-                write!(f, "File not found: {}\n", path.display())?;
+                writeln!(f, "File not found: {}", path.display())?;
                 write!(
                     f,
                     "Suggestion: Check that the file path is correct and the file exists"
                 )
             }
             HashUtilityError::DirectoryNotFound { path } => {
-                write!(f, "Directory not found: {}\n", path.display())?;
+                writeln!(f, "Directory not found: {}", path.display())?;
                 write!(
                     f,
                     "Suggestion: Check that the directory path is correct and the directory exists"
                 )
             }
             HashUtilityError::PermissionDenied { path, operation } => {
-                write!(
+                writeln!(
                     f,
-                    "Permission denied while {} file: {}\n",
+                    "Permission denied while {} file: {}",
                     operation,
                     path.display()
                 )?;
@@ -109,22 +110,22 @@ impl fmt::Display for HashUtilityError {
                 source,
             } => {
                 if let Some(p) = path {
-                    write!(
+                    writeln!(
                         f,
-                        "I/O error while {} file {}: {}\n",
+                        "I/O error while {} file {}: {}",
                         operation,
                         p.display(),
                         source
                     )?;
                 } else {
-                    write!(f, "I/O error while {}: {}\n", operation, source)?;
+                    writeln!(f, "I/O error while {}: {}", operation, source)?;
                 }
                 write!(f, "Suggestion: Check file permissions and disk space")
             }
 
             // Hash computation errors
             HashUtilityError::UnsupportedAlgorithm { algorithm } => {
-                write!(f, "Unsupported hash algorithm: {}\n", algorithm)?;
+                writeln!(f, "Unsupported hash algorithm: {}", algorithm)?;
                 write!(f, "Suggestion: Use --list to see available algorithms")
             }
             HashUtilityError::HashComputationFailed {
@@ -132,9 +133,9 @@ impl fmt::Display for HashUtilityError {
                 algorithm,
                 reason,
             } => {
-                write!(
+                writeln!(
                     f,
-                    "Failed to compute {} hash for {}: {}\n",
+                    "Failed to compute {} hash for {}: {}",
                     algorithm,
                     path.display(),
                     reason
@@ -147,16 +148,16 @@ impl fmt::Display for HashUtilityError {
 
             // Database errors
             HashUtilityError::DatabaseNotFound { path } => {
-                write!(f, "Hash database file not found: {}\n", path.display())?;
+                writeln!(f, "Hash database file not found: {}", path.display())?;
                 write!(
                     f,
                     "Suggestion: Create a database first using the 'scan' command"
                 )
             }
             HashUtilityError::DatabaseParseError { path, line, reason } => {
-                write!(
+                writeln!(
                     f,
-                    "Error parsing database {} at line {}: {}\n",
+                    "Error parsing database {} at line {}: {}",
                     path.display(),
                     line,
                     reason
@@ -167,16 +168,16 @@ impl fmt::Display for HashUtilityError {
                 )
             }
             HashUtilityError::DatabaseWriteError { path, reason } => {
-                write!(
+                writeln!(
                     f,
-                    "Failed to write to database {}: {}\n",
+                    "Failed to write to database {}: {}",
                     path.display(),
                     reason
                 )?;
                 write!(f, "Suggestion: Check disk space and write permissions")
             }
             HashUtilityError::EmptyDatabase { path } => {
-                write!(f, "Database file is empty: {}\n", path.display())?;
+                writeln!(f, "Database file is empty: {}", path.display())?;
                 write!(
                     f,
                     "Suggestion: Ensure the database contains at least one hash entry"
@@ -185,7 +186,7 @@ impl fmt::Display for HashUtilityError {
 
             // Verification errors
             HashUtilityError::VerificationFailed { reason } => {
-                write!(f, "Verification failed: {}\n", reason)?;
+                writeln!(f, "Verification failed: {}", reason)?;
                 write!(
                     f,
                     "Suggestion: Check that the database and directory paths are correct"
@@ -194,17 +195,17 @@ impl fmt::Display for HashUtilityError {
 
             // CLI errors
             HashUtilityError::InvalidArguments { message } => {
-                write!(f, "Invalid arguments: {}\n", message)?;
+                writeln!(f, "Invalid arguments: {}", message)?;
                 write!(f, "Suggestion: Run with --help to see usage information")
             }
             HashUtilityError::MissingRequiredArgument { argument } => {
-                write!(f, "Missing required argument: {}\n", argument)?;
+                writeln!(f, "Missing required argument: {}", argument)?;
                 write!(f, "Suggestion: Run with --help to see required arguments")
             }
 
             // Benchmark errors
             HashUtilityError::BenchmarkFailed { algorithm, reason } => {
-                write!(f, "Benchmark failed for {}: {}\n", algorithm, reason)?;
+                writeln!(f, "Benchmark failed for {}: {}", algorithm, reason)?;
                 write!(
                     f,
                     "Suggestion: Try running the benchmark again or with a smaller data size"
@@ -326,7 +327,7 @@ mod tests {
 
     #[test]
     fn test_io_error_with_path() {
-        let io_err = io::Error::new(io::ErrorKind::Other, "disk full");
+        let io_err = io::Error::other("disk full");
         let error = HashUtilityError::IoError {
             path: Some(PathBuf::from("output.txt")),
             operation: "writing".to_string(),
@@ -340,7 +341,7 @@ mod tests {
 
     #[test]
     fn test_io_error_without_path() {
-        let io_err = io::Error::new(io::ErrorKind::Other, "unknown error");
+        let io_err = io::Error::other("unknown error");
         let error = HashUtilityError::IoError {
             path: None,
             operation: "processing".to_string(),
@@ -433,7 +434,7 @@ mod tests {
 
     #[test]
     fn test_error_source() {
-        let io_err = io::Error::new(io::ErrorKind::Other, "test error");
+        let io_err = io::Error::other("test error");
         let error = HashUtilityError::IoError {
             path: None,
             operation: "test".to_string(),

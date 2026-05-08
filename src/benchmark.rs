@@ -145,9 +145,6 @@ fn calculate_throughput(data_size_mb: usize, duration: Duration) -> f64 {
     }
 }
 
-// Re-export HashUtilityError as BenchmarkError for backward compatibility
-pub type BenchmarkError = HashUtilityError;
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -194,7 +191,6 @@ mod tests {
     #[test]
     fn test_benchmark_engine_creation() {
         let _engine = BenchmarkEngine::new();
-        assert!(true); // Just verify it can be created
     }
 
     #[test]

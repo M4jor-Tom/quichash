@@ -55,6 +55,7 @@ pub struct DuplicateGroupWithSize {
 
 impl DedupReport {
     /// Display the dedup report in plain text format
+    #[allow(dead_code)]
     pub fn display(&self) {
         println!("\n=== Duplicate Files Report ===\n");
 
@@ -158,6 +159,8 @@ pub struct DedupEngine {
     quiet: bool,
 }
 
+type ScanResult = Result<(HashMap<String, Vec<(PathBuf, u64)>>, usize, usize, u64), HashUtilityError>;
+
 impl DedupEngine {
     /// Create a new DedupEngine with default settings
     /// Always uses BLAKE3 algorithm (fast and secure)
@@ -248,8 +251,8 @@ impl DedupEngine {
     fn scan_sequential(
         &self,
         canonical_root: &Path,
-        start_time: Instant,
-    ) -> Result<(HashMap<String, Vec<(PathBuf, u64)>>, usize, usize, u64), HashUtilityError> {
+        _start_time: Instant,
+    ) -> ScanResult {
         // Collect all files
         let files = self.collect_files(canonical_root)?;
 
@@ -306,7 +309,7 @@ impl DedupEngine {
                     // Add to hash map
                     hash_map
                         .entry(result.hash)
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push((file_path.clone(), file_size));
 
                     files_scanned += 1;
@@ -330,8 +333,8 @@ impl DedupEngine {
     fn scan_parallel(
         &self,
         canonical_root: &Path,
-        start_time: Instant,
-    ) -> Result<(HashMap<String, Vec<(PathBuf, u64)>>, usize, usize, u64), HashUtilityError> {
+        _start_time: Instant,
+    ) -> ScanResult {
         // Thread-safe counters
         let files_scanned = Arc::new(Mutex::new(0usize));
         let files_failed = Arc::new(Mutex::new(0usize));
@@ -475,7 +478,7 @@ impl DedupEngine {
         for (hash, path, size) in results {
             hash_map
                 .entry(hash)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push((path, size));
         }
 
@@ -552,7 +555,7 @@ impl DedupEngine {
                     }
 
                     // Send file path to channel
-                    if let Err(_) = sender.send(path) {
+                    if sender.send(path).is_err() {
                         break;
                     }
 
@@ -707,9 +710,8 @@ mod tests {
     use super::*;
     use std::fs;
 
-    fn create_test_dir(name: &str) -> tempfile::TempDir {
-        let dir = tempfile::tempdir().unwrap();
-        dir
+    fn create_test_dir(_: &str) -> tempfile::TempDir {
+        tempfile::tempdir().unwrap()
     }
 
     #[test]

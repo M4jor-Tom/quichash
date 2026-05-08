@@ -59,9 +59,19 @@ fn main() {
             format,
             json,
             compress,
-        }) => handle_scan_command(
-            &directory, &algorithm, &database, !hdd, fast, &format, json, compress,
-        ),
+        }) => {
+            let opts = ScanCommandOptions {
+                directory_pattern: &directory,
+                algorithm: &algorithm,
+                output: &database,
+                parallel: !hdd,
+                fast,
+                format_str: &format,
+                json,
+                compress,
+            };
+            handle_scan_command(&opts)
+        },
         Some(Command::Verify {
             database,
             directory,
@@ -223,7 +233,7 @@ fn handle_hash_command(
             for result in &results {
                 by_file
                     .entry(result.file_path.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(result);
             }
 
@@ -276,33 +286,35 @@ fn handle_hash_command(
     Ok(())
 }
 
-/// Handle the scan command: scan directory and write database
-fn handle_scan_command(
-    directory_pattern: &str,
-    algorithm: &str,
-    output: &std::path::Path,
+struct ScanCommandOptions<'a> {
+    directory_pattern: &'a str,
+    algorithm: &'a str,
+    output: &'a std::path::Path,
     parallel: bool,
     fast: bool,
-    format_str: &str,
+    format_str: &'a str,
     json: bool,
     compress: bool,
-) -> Result<(), HashUtilityError> {
+}
+
+/// Handle the scan command: scan directory and write database
+fn handle_scan_command(opts: &ScanCommandOptions) -> Result<(), HashUtilityError> {
     // Parse format string
-    let format = match format_str.to_lowercase().as_str() {
+    let format = match opts.format_str.to_lowercase().as_str() {
         "standard" => DatabaseFormat::Standard,
         "hashdeep" => DatabaseFormat::Hashdeep,
         _ => {
             return Err(HashUtilityError::InvalidArguments {
                 message: format!(
                     "Invalid format '{}'. Valid formats are: standard, hashdeep",
-                    format_str
+                    opts.format_str
                 ),
             });
         }
     };
 
     // Expand wildcard pattern to get list of directories
-    let directories = wildcard::expand_pattern(directory_pattern)?;
+    let directories = wildcard::expand_pattern(opts.directory_pattern)?;
 
     // Verify all matched paths are directories
     for dir in &directories {
@@ -313,10 +325,10 @@ fn handle_scan_command(
         }
     }
 
-    let engine = ScanEngine::with_parallel(parallel)
-        .with_fast_mode(fast)
+    let engine = ScanEngine::with_parallel(opts.parallel)
+        .with_fast_mode(opts.fast)
         .with_format(format)
-        .with_quiet(json);
+        .with_quiet(opts.json);
 
     // Scan all matched directories and aggregate stats
     let mut total_stats = scan::ScanStats {
@@ -329,8 +341,8 @@ fn handle_scan_command(
     // For multiple directories, we need to handle output differently
     if directories.len() > 1 {
         // Create the output file first (this will overwrite if it exists)
-        std::fs::File::create(output).map_err(|e| {
-            HashUtilityError::from_io_error(e, "creating output file", Some(output.to_path_buf()))
+        std::fs::File::create(opts.output).map_err(|e| {
+            HashUtilityError::from_io_error(e, "creating output file", Some(opts.output.to_path_buf()))
         })?;
 
         // Scan each directory and append to the output file
@@ -338,14 +350,14 @@ fn handle_scan_command(
             // For the first directory, use normal mode (create/overwrite)
             // For subsequent directories, we need to append
             let temp_output = if idx == 0 {
-                output.to_path_buf()
+                opts.output.to_path_buf()
             } else {
                 // Create a temporary file for this directory's results
-                let temp_path = output.with_extension(format!("tmp{}", idx));
+                let temp_path = opts.output.with_extension(format!("tmp{}", idx));
                 temp_path
             };
 
-            let stats = engine.scan_directory(directory, algorithm, &temp_output)?;
+            let stats = engine.scan_directory(directory, opts.algorithm, &temp_output)?;
 
             // If we used a temp file, append its contents to the main output
             if idx > 0 {
@@ -360,12 +372,12 @@ fn handle_scan_command(
                 use std::io::Write;
                 let mut output_file = std::fs::OpenOptions::new()
                     .append(true)
-                    .open(output)
+                    .open(opts.output)
                     .map_err(|e| {
                         HashUtilityError::from_io_error(
                             e,
                             "opening output file for append",
-                            Some(output.to_path_buf()),
+                            Some(opts.output.to_path_buf()),
                         )
                     })?;
 
@@ -375,7 +387,7 @@ fn handle_scan_command(
                         HashUtilityError::from_io_error(
                             e,
                             "appending to output file",
-                            Some(output.to_path_buf()),
+                            Some(opts.output.to_path_buf()),
                         )
                     })?;
 
@@ -390,40 +402,40 @@ fn handle_scan_command(
         }
     } else {
         // Single directory - use normal scan
-        let stats = engine.scan_directory(&directories[0], algorithm, output)?;
+        let stats = engine.scan_directory(&directories[0], opts.algorithm, opts.output)?;
         total_stats = stats;
     }
 
     let stats = total_stats;
 
     // Compress the database if requested
-    let final_output = if compress {
+    let final_output = if opts.compress {
         use database::DatabaseHandler;
 
-        if !json {
+        if !opts.json {
             println!("Compressing database...");
         }
-        let compressed_path = DatabaseHandler::compress_database(output)?;
+        let compressed_path = DatabaseHandler::compress_database(opts.output)?;
 
         // Remove the uncompressed file
-        std::fs::remove_file(output).map_err(|e| {
+        std::fs::remove_file(opts.output).map_err(|e| {
             HashUtilityError::from_io_error(
                 e,
                 "removing uncompressed database",
-                Some(output.to_path_buf()),
+                Some(opts.output.to_path_buf()),
             )
         })?;
 
-        if !json {
+        if !opts.json {
             println!("Database compressed to: {}", compressed_path.display());
         }
         compressed_path
     } else {
-        output.to_path_buf()
+        opts.output.to_path_buf()
     };
 
     // Output results in JSON if requested
-    if json {
+    if opts.json {
         #[derive(serde::Serialize)]
         struct ScanOutput {
             stats: scan::ScanStats,
@@ -446,13 +458,13 @@ fn handle_scan_command(
             stats,
             metadata: ScanMetadata {
                 timestamp: chrono::Utc::now().to_rfc3339(),
-                directory_pattern: directory_pattern.to_string(),
+                directory_pattern: opts.directory_pattern.to_string(),
                 directories_scanned: directories,
-                algorithm: algorithm.to_string(),
+                algorithm: opts.algorithm.to_string(),
                 output_file: final_output,
-                parallel,
-                fast_mode: fast,
-                format: format_str.to_string(),
+                parallel: opts.parallel,
+                fast_mode: opts.fast,
+                format: opts.format_str.to_string(),
             },
         };
 
@@ -509,7 +521,7 @@ fn handle_verify_command(
     }
 
     // Aggregate results if multiple verifications were performed
-    let (database, directory, report) = if all_reports.len() == 1 {
+    let (_database, _directory, report) = if all_reports.len() == 1 {
         // Single verification - use the report as-is
         let (db, dir, rep) = all_reports.into_iter().next().unwrap();
         (db, dir, rep)
@@ -546,8 +558,6 @@ fn handle_verify_command(
         let (first_db, first_dir, _) = all_reports.into_iter().next().unwrap();
         (first_db, first_dir, aggregated_report)
     };
-
-    let report = report;
 
     // Output results based on format
     if json {

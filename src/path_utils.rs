@@ -7,17 +7,18 @@ use std::path::{Component, Path, PathBuf};
 
 /// Normalize a path string by handling both forward and backward slashes
 /// Converts all path separators to the platform-specific separator
+#[allow(dead_code)]
 pub fn normalize_path_string(path_str: &str) -> String {
     // Replace both types of separators with the platform separator
-    let normalized = if cfg!(windows) {
+    
+
+    if cfg!(windows) {
         // On Windows, convert forward slashes to backslashes
         path_str.replace('/', "\\")
     } else {
         // On Unix-like systems, convert backslashes to forward slashes
         path_str.replace('\\', "/")
-    };
-
-    normalized
+    }
 }
 
 /// Parse a path from a database entry, handling mixed separators
@@ -39,6 +40,7 @@ pub fn try_canonicalize(path: &Path) -> io::Result<PathBuf> {
 
 /// Get a relative path from a base directory
 /// If the path cannot be made relative, returns the absolute path
+#[allow(dead_code)]
 pub fn get_relative_path(path: &Path, base: &Path) -> io::Result<PathBuf> {
     // Canonicalize both paths for consistent comparison
     let canonical_path = path.canonicalize()?;
@@ -118,6 +120,7 @@ pub fn resolve_path(path: &Path, base_dir: &Path) -> PathBuf {
 
 /// Clean a path by removing redundant components like "." and ".."
 /// This provides a normalized form without requiring the path to exist
+#[allow(dead_code)]
 pub fn clean_path(path: &Path) -> PathBuf {
     let mut components = Vec::new();
 
@@ -272,7 +275,7 @@ mod tests {
         let file = Path::new(&file_path);
 
         // Get relative path using cached base
-        let result = get_relative_path_cached(&file, &canonical_base);
+        let result = get_relative_path_cached(file, &canonical_base);
         assert!(result.is_ok());
 
         let relative = result.unwrap();

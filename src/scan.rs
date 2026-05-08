@@ -82,6 +82,7 @@ impl ScanEngine {
     }
 
     /// Enable or disable .hashignore file support
+    #[allow(dead_code)]
     pub fn with_ignore(mut self, use_ignore: bool) -> Self {
         self.use_ignore = use_ignore;
         self
@@ -260,7 +261,7 @@ impl ScanEngine {
                         DatabaseFormat::Hashdeep => DatabaseHandler::write_hashdeep_entry(
                             &mut writer,
                             file_size,
-                            &[result.hash.clone()],
+                            std::slice::from_ref(&result.hash),
                             &path_to_write,
                         ),
                     };
@@ -533,7 +534,7 @@ impl ScanEngine {
                 DatabaseFormat::Hashdeep => DatabaseHandler::write_hashdeep_entry(
                     &mut writer,
                     result.2,
-                    &[result.0.clone()],
+                    std::slice::from_ref(&result.0),
                     &result.1,
                 ),
             };
@@ -673,7 +674,7 @@ impl ScanEngine {
 
                     // Send file path to channel
                     // If channel is full, this will block (backpressure)
-                    if let Err(_) = sender.send(path) {
+                    if sender.send(path).is_err() {
                         // Receiver has been dropped, stop walking
                         break;
                     }
@@ -700,6 +701,7 @@ impl ScanEngine {
     ///
     /// # Returns
     /// Vector of all file paths found
+    #[allow(dead_code)]
     fn collect_files(&self, root: &Path) -> Result<Vec<PathBuf>, ScanError> {
         self.collect_files_with_exclusion(root, None)
     }

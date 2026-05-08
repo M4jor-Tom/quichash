@@ -75,6 +75,7 @@ fn format_size(bytes: u64) -> String {
 
 impl CompareReport {
     /// Display the comparison report in plain text format
+    #[allow(dead_code)]
     pub fn display(&self) {
         println!("\n=== Database Comparison Report ===\n");
 
@@ -647,7 +648,7 @@ impl CompareEngine {
         for (path, entry) in database {
             hash_to_paths
                 .entry(entry.hash.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(path.clone());
         }
 
